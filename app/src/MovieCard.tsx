@@ -1,0 +1,35 @@
+import React from 'react';
+import { useMovieContext } from './MovieContext';
+import type { Movie } from './MovieContext';
+
+interface MovieCardProps {
+  movie: Movie;
+}
+
+const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
+  const { addFavourite, removeFavourite, isFavourite } = useMovieContext();
+
+  const handleFavourite = () => {
+    if (isFavourite(movie.id)) {
+      removeFavourite(movie.id);
+    } else {
+      addFavourite(movie);
+    }
+  };
+
+  return (
+    <div className="movie-card">
+      <img
+        src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+        alt={movie.title}
+      />
+      <h3>{movie.title}</h3>
+      <p>{movie.release_date}</p>
+      <button onClick={handleFavourite}>
+        {isFavourite(movie.id) ? 'Remove from Favourites' : 'Add to Favourites'}
+      </button>
+    </div>
+  );
+};
+
+export default MovieCard;
