@@ -3,7 +3,8 @@ import axios from 'axios';
 import MovieCard from './MovieCard';
 import type { Movie } from './MovieContext';
 
-const API_KEY = '59e7bd5d1a601e53bd390c96861361d3'; // Replace with your TMDB API key
+// const API_KEY = ''; // Replace with your TMDB API key
+const API_KEY = import.meta.env.VITE_APP_API_KEY;
 const BASE_URL = 'https://api.themoviedb.org/3';
 
 const Home: React.FC = () => {
