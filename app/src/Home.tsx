@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import MovieCard from './MovieCard';
-import MovieModal from './MovieModal';
-import type { Movie } from './MovieContext';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import MovieCard from "./MovieCard";
+import MovieModal from "./MovieModal";
+import type { Movie } from "./MovieContext";
 
 const API_KEY = import.meta.env.VITE_APP_API_KEY;
-const BASE_URL = 'https://api.themoviedb.org/3';
+const BASE_URL = "https://api.themoviedb.org/3";
 
 const Home: React.FC = () => {
   const [movies, setMovies] = useState<Movie[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [activeQuery, setActiveQuery] = useState('');
+  const [activeQuery, setActiveQuery] = useState("");
 
-  const fetchMovies = async (query: string = '', page: number = 1) => {
+  const fetchMovies = async (query: string = "", page: number = 1) => {
     setLoading(true);
     try {
       const endpoint = query
@@ -26,7 +26,7 @@ const Home: React.FC = () => {
       setMovies(response.data.results);
       setTotalPages(response.data.total_pages);
     } catch (error) {
-      console.error('Error fetching movies:', error);
+      console.error("Error fetching movies:", error);
     } finally {
       setLoading(false);
     }
@@ -76,8 +76,12 @@ const Home: React.FC = () => {
       </form>
       {loading && <div className="loading-spinner">Loading...</div>}
       <div className="movie-grid fade-in">
-        {movies.map(movie => (
-          <MovieCard key={movie.id} movie={movie} onClick={() => handleMovieClick(movie)} />
+        {movies.map((movie) => (
+          <MovieCard
+            key={movie.id}
+            movie={movie}
+            onClick={() => handleMovieClick(movie)}
+          />
         ))}
       </div>
       <div className="pagination">

@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
-import type { ReactNode } from 'react';
+import React, { createContext, useContext, useState } from "react";
+import type { ReactNode } from "react";
 
 export interface Movie {
   id: number;
@@ -20,23 +20,27 @@ interface MovieContextType {
 
 const MovieContext = createContext<MovieContextType | undefined>(undefined);
 
-export const MovieProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const MovieProvider: React.FC<{ children: ReactNode }> = (
+  { children },
+) => {
   const [favourites, setFavourites] = useState<Movie[]>([]);
 
   const addFavourite = (movie: Movie) => {
-    setFavourites(prev => [...prev, movie]);
+    setFavourites((prev) => [...prev, movie]);
   };
 
   const removeFavourite = (id: number) => {
-    setFavourites(prev => prev.filter(movie => movie.id !== id));
+    setFavourites((prev) => prev.filter((movie) => movie.id !== id));
   };
 
   const isFavourite = (id: number) => {
-    return favourites.some(movie => movie.id === id);
+    return favourites.some((movie) => movie.id === id);
   };
 
   return (
-    <MovieContext.Provider value={{ favourites, addFavourite, removeFavourite, isFavourite }}>
+    <MovieContext.Provider
+      value={{ favourites, addFavourite, removeFavourite, isFavourite }}
+    >
       {children}
     </MovieContext.Provider>
   );
@@ -45,7 +49,7 @@ export const MovieProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 export const useMovieContext = () => {
   const context = useContext(MovieContext);
   if (!context) {
-    throw new Error('useMovieContext must be used within a MovieProvider');
+    throw new Error("useMovieContext must be used within a MovieProvider");
   }
   return context;
 };

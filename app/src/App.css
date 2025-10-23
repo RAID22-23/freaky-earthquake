@@ -46,17 +46,39 @@
   box-sizing: border-box;
 }
 
-.movie-card:nth-child(1) { animation-delay: 0.1s; }
-.movie-card:nth-child(2) { animation-delay: 0.2s; }
-.movie-card:nth-child(3) { animation-delay: 0.3s; }
-.movie-card:nth-child(4) { animation-delay: 0.4s; }
-.movie-card:nth-child(5) { animation-delay: 0.5s; }
-.movie-card:nth-child(6) { animation-delay: 0.6s; }
-.movie-card:nth-child(7) { animation-delay: 0.7s; }
-.movie-card:nth-child(8) { animation-delay: 0.8s; }
-.movie-card:nth-child(9) { animation-delay: 0.9s; }
-.movie-card:nth-child(10) { animation-delay: 1.0s; }
-.movie-card:nth-child(n+11) { animation-delay: 1.1s; }
+.movie-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.movie-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.movie-card:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.movie-card:nth-child(4) {
+  animation-delay: 0.4s;
+}
+.movie-card:nth-child(5) {
+  animation-delay: 0.5s;
+}
+.movie-card:nth-child(6) {
+  animation-delay: 0.6s;
+}
+.movie-card:nth-child(7) {
+  animation-delay: 0.7s;
+}
+.movie-card:nth-child(8) {
+  animation-delay: 0.8s;
+}
+.movie-card:nth-child(9) {
+  animation-delay: 0.9s;
+}
+.movie-card:nth-child(10) {
+  animation-delay: 1.0s;
+}
+.movie-card:nth-child(n+11) {
+  animation-delay: 1.1s;
+}
 
 @keyframes cardFadeIn {
   from {
@@ -70,13 +92,18 @@
 }
 
 .movie-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
   transition: left 0.5s;
 }
 
@@ -157,7 +184,7 @@ nav a {
 }
 
 nav a::after {
-  content: '';
+  content: "";
   position: absolute;
   width: 0;
   height: 2px;
@@ -292,33 +319,33 @@ form button:hover {
   #root {
     padding: 1rem;
   }
-  
+
   .movie-grid {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
   }
-  
+
   .movie-card {
     padding: 1rem;
   }
-  
+
   .movie-card img {
     height: 250px;
   }
-  
+
   nav {
     padding: 0.8rem;
   }
-  
+
   nav a {
     margin: 0 1rem;
   }
-  
+
   form {
     flex-direction: column;
     gap: 0.5rem;
   }
-  
+
   input {
     width: 250px;
   }
@@ -330,37 +357,37 @@ form button:hover {
   #root {
     padding: 0.5rem;
   }
-  
+
   .movie-grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1rem;
   }
-  
+
   .movie-card {
     padding: 0.8rem;
   }
-  
+
   .movie-card img {
     height: 200px;
   }
-  
+
   .movie-card h3 {
     font-size: 1em;
   }
-  
+
   .movie-card p {
     font-size: 0.8em;
   }
-  
+
   .movie-card button {
     padding: 0.6rem 1rem;
     font-size: 0.8em;
   }
-  
+
   input {
     width: 200px;
   }
-  
+
   form button {
     padding: 0.7rem 1.5rem;
     font-size: 0.9em;
@@ -493,17 +520,17 @@ form button:hover {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .modal-poster {
     width: 250px;
     height: 375px;
   }
-  
+
   .modal-details h2 {
     font-size: 2rem;
     text-align: center;
   }
-  
+
   .modal-stats {
     justify-content: center;
   }
@@ -513,16 +540,16 @@ form button:hover {
   .modal-content {
     padding: 1rem;
   }
-  
+
   .modal-poster {
     width: 200px;
     height: 300px;
   }
-  
+
   .modal-details h2 {
     font-size: 1.5rem;
   }
-  
+
   .modal-stats {
     flex-direction: column;
     gap: 0.5rem;

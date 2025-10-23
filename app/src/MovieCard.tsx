@@ -1,6 +1,6 @@
-import React from 'react';
-import { useMovieContext } from './MovieContext';
-import type { Movie } from './MovieContext';
+import React from "react";
+import { useMovieContext } from "./MovieContext";
+import type { Movie } from "./MovieContext";
 
 interface MovieCardProps {
   movie: Movie;
@@ -26,8 +26,13 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onClick }) => {
       />
       <h3>{movie.title}</h3>
       <p>{movie.release_date}</p>
-      <button onClick={(e) => { e.stopPropagation(); handleFavourite(); }}>
-        {isFavourite(movie.id) ? 'Remove from Favourites' : 'Add to Favourites'}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleFavourite();
+        }}
+      >
+        {isFavourite(movie.id) ? "Remove from Favourites" : "Add to Favourites"}
       </button>
     </div>
   );

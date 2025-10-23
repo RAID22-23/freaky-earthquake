@@ -1,5 +1,5 @@
-import React from 'react';
-import type { Movie } from './MovieContext';
+import React from "react";
+import type { Movie } from "./MovieContext";
 
 interface MovieModalProps {
   movie: Movie | null;
@@ -22,7 +22,9 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose }) => {
           <div className="modal-details">
             <h2>{movie.title}</h2>
             <p className="modal-release">Release Date: {movie.release_date}</p>
-            <p className="modal-overview">{movie.overview || 'No overview available.'}</p>
+            <p className="modal-overview">
+              {movie.overview || "No overview available."}
+            </p>
             <div className="modal-stats">
               <span>Rating: {movie.vote_average}/10</span>
               <span>Votes: {movie.vote_count}</span>

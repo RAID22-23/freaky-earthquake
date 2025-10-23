@@ -1,9 +1,9 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { MovieProvider } from './MovieContext';
-import NavBar from './NavBar';
-import Home from './Home';
-import Favourites from './Favourites';
-import './App.css';
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { MovieProvider } from "./MovieContext";
+import NavBar from "./NavBar";
+import Home from "./Home";
+import Favourites from "./Favourites";
+import "./App.css";
 
 function App() {
   return (
