@@ -1,3 +1,4 @@
+/* Estilos para el contenedor raíz de la aplicación */
 #root {
   max-width: 1400px;
   margin: 0 auto;
@@ -6,10 +7,12 @@
   min-height: 100vh;
 }
 
+/* Estilos para la página con animación de entrada */
 .page {
   animation: pageFadeIn 0.8s ease-out;
 }
 
+/* Animación de desvanecimiento para la página */
 @keyframes pageFadeIn {
   from {
     opacity: 0;
@@ -21,6 +24,7 @@
   }
 }
 
+/* Estilos para la cuadrícula de películas */
 .movie-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -28,6 +32,7 @@
   margin-top: 2rem;
 }
 
+/* Estilos para cada tarjeta de película */
 .movie-card {
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
@@ -46,6 +51,7 @@
   box-sizing: border-box;
 }
 
+/* Retrasos de animación para las primeras tarjetas */
 .movie-card:nth-child(1) {
   animation-delay: 0.1s;
 }
@@ -80,6 +86,7 @@
   animation-delay: 1.1s;
 }
 
+/* Animación de entrada para las tarjetas */
 @keyframes cardFadeIn {
   from {
     opacity: 0;
@@ -91,6 +98,7 @@
   }
 }
 
+/* Efecto de brillo en hover */
 .movie-card::before {
   content: "";
   position: absolute;
@@ -107,10 +115,12 @@
   transition: left 0.5s;
 }
 
+/* Activación del efecto de brillo en hover */
 .movie-card:hover::before {
   left: 100%;
 }
 
+/* Estilos en hover para la tarjeta */
 .movie-card:hover {
   transform: translateY(-5px) scale(1.02);
   box-shadow: 0 20px 40px rgba(100, 108, 255, 0.3);
@@ -118,6 +128,7 @@
   z-index: 10;
 }
 
+/* Estilos para la imagen del póster */
 .movie-card img {
   width: 100%;
   height: 300px;
@@ -126,10 +137,12 @@
   transition: transform 0.3s ease;
 }
 
+/* Efecto de zoom en la imagen en hover */
 .movie-card:hover img {
   transform: scale(1.1);
 }
 
+/* Estilos para el título de la película */
 .movie-card h3 {
   margin: 1rem 0 0.5rem 0;
   font-size: 1.2em;
@@ -137,12 +150,14 @@
   font-weight: 600;
 }
 
+/* Estilos para la fecha de lanzamiento */
 .movie-card p {
   color: rgba(255, 255, 255, 0.7);
   margin: 0.5rem 0;
   font-size: 0.9em;
 }
 
+/* Estilos para el botón de favoritos */
 .movie-card button {
   background: linear-gradient(45deg, #ff6b6b, #ee5a24);
   color: white;
@@ -158,12 +173,14 @@
   box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
 }
 
+/* Estilos en hover para el botón */
 .movie-card button:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
   background: linear-gradient(45deg, #ee5a24, #ff6b6b);
 }
 
+/* Estilos para la barra de navegación */
 nav {
   margin-bottom: 2rem;
   text-align: center;
@@ -174,6 +191,7 @@ nav {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
+/* Estilos para los enlaces de navegación */
 nav a {
   color: #646cff;
   text-decoration: none;
@@ -183,6 +201,7 @@ nav a {
   position: relative;
 }
 
+/* Línea inferior animada para los enlaces */
 nav a::after {
   content: "";
   position: absolute;
@@ -195,15 +214,18 @@ nav a::after {
   transform: translateX(-50%);
 }
 
+/* Activación de la línea en hover */
 nav a:hover::after {
   width: 100%;
 }
 
+/* Estilos en hover para los enlaces */
 nav a:hover {
   color: #535bf2;
   transform: translateY(-1px);
 }
 
+/* Estilos para el formulario de búsqueda */
 form {
   margin-bottom: 2rem;
   display: flex;
@@ -213,6 +235,7 @@ form {
   flex-wrap: wrap;
 }
 
+/* Estilos para el campo de entrada */
 input {
   padding: 0.8rem 1.2rem;
   width: 300px;
@@ -226,6 +249,7 @@ input {
   transition: all 0.3s ease;
 }
 
+/* Estilos en foco para el input */
 input:focus {
   outline: none;
   border-color: #646cff;
@@ -233,10 +257,12 @@ input:focus {
   transform: scale(1.02);
 }
 
+/* Estilos para el placeholder */
 input::placeholder {
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Estilos para el botón del formulario */
 form button {
   background: linear-gradient(45deg, #646cff, #535bf2);
   color: white;
@@ -251,12 +277,13 @@ form button {
   box-shadow: 0 4px 15px rgba(100, 108, 255, 0.3);
 }
 
+/* Estilos en hover para el botón del formulario */
 form button:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(100, 108, 255, 0.3);
 }
 
-/* Loading Spinner */
+/* Estilos para el spinner de carga */
 .loading-spinner {
   text-align: center;
   font-size: 1.2rem;
@@ -265,6 +292,7 @@ form button:hover {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+/* Animación de pulso para el spinner */
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -274,7 +302,7 @@ form button:hover {
   }
 }
 
-/* Pagination */
+/* Estilos para la paginación */
 .pagination {
   display: flex;
   justify-content: center;
@@ -283,6 +311,7 @@ form button:hover {
   margin: 2rem 0;
 }
 
+/* Estilos para los botones de paginación */
 .pagination button {
   background: linear-gradient(45deg, #646cff, #535bf2);
   color: white;
@@ -297,24 +326,27 @@ form button:hover {
   box-shadow: 0 4px 15px rgba(100, 108, 255, 0.3);
 }
 
+/* Estilos en hover para botones de paginación no deshabilitados */
 .pagination button:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(100, 108, 255, 0.3);
 }
 
+/* Estilos para botones deshabilitados */
 .pagination button:disabled {
   background: rgba(255, 255, 255, 0.2);
   cursor: not-allowed;
   box-shadow: none;
 }
 
+/* Estilos para el texto de paginación */
 .pagination span {
   color: #fff;
   font-weight: 500;
   font-size: 1rem;
 }
 
-/* Responsive adjustments */
+/* Ajustes responsivos para pantallas medianas */
 @media (max-width: 768px) {
   #root {
     padding: 1rem;
@@ -351,8 +383,7 @@ form button:hover {
   }
 }
 
-/* ...existing code... */
-
+/* Ajustes responsivos para pantallas pequeñas */
 @media (max-width: 480px) {
   #root {
     padding: 0.5rem;
@@ -404,7 +435,7 @@ form button:hover {
   }
 }
 
-/* Modal Styles */
+/* Estilos para el overlay del modal */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -419,6 +450,7 @@ form button:hover {
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Estilos para el contenido del modal */
 .modal-content {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
@@ -434,6 +466,7 @@ form button:hover {
   animation: slideIn 0.4s ease-out;
 }
 
+/* Animación de deslizamiento para el modal */
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -445,6 +478,7 @@ form button:hover {
   }
 }
 
+/* Estilos para el botón de cerrar modal */
 .modal-close {
   position: absolute;
   top: 1rem;
@@ -457,16 +491,19 @@ form button:hover {
   transition: transform 0.3s ease;
 }
 
+/* Efecto de rotación en hover para el botón de cerrar */
 .modal-close:hover {
   transform: rotate(90deg);
 }
 
+/* Estilos para el cuerpo del modal */
 .modal-body {
   display: flex;
   gap: 2rem;
   align-items: flex-start;
 }
 
+/* Estilos para el póster en el modal */
 .modal-poster {
   width: 300px;
   height: 450px;
@@ -475,11 +512,13 @@ form button:hover {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
+/* Estilos para los detalles de la película en el modal */
 .modal-details {
   flex: 1;
   color: #fff;
 }
 
+/* Estilos para el título en el modal */
 .modal-details h2 {
   margin: 0 0 1rem 0;
   font-size: 2.5rem;
@@ -489,24 +528,28 @@ form button:hover {
   background-clip: text;
 }
 
+/* Estilos para la fecha de lanzamiento en el modal */
 .modal-release {
   font-size: 1.1rem;
   margin-bottom: 1rem;
   color: rgba(255, 255, 255, 0.8);
 }
 
+/* Estilos para la sinopsis en el modal */
 .modal-overview {
   font-size: 1rem;
   line-height: 1.6;
   margin-bottom: 1.5rem;
 }
 
+/* Estilos para las estadísticas en el modal */
 .modal-stats {
   display: flex;
   gap: 2rem;
   font-size: 1rem;
 }
 
+/* Estilos para cada estadística */
 .modal-stats span {
   background: rgba(255, 255, 255, 0.1);
   padding: 0.5rem 1rem;
@@ -514,7 +557,7 @@ form button:hover {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Responsive modal */
+/* Ajustes responsivos para el modal en pantallas medianas */
 @media (max-width: 768px) {
   .modal-body {
     flex-direction: column;
@@ -536,6 +579,7 @@ form button:hover {
   }
 }
 
+/* Ajustes responsivos para el modal en pantallas pequeñas */
 @media (max-width: 480px) {
   .modal-content {
     padding: 1rem;
