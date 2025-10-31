@@ -159,7 +159,7 @@ freaky-earthquake/
 
 3. **Configura la API Key**:
    - Obtén una API key gratuita de [TMDB](https://www.themoviedb.org/settings/api).
-   - Reemplaza la `API_KEY` en `src/Home.tsx` con tu clave.
+   - Reemplaza la `VITE_APP_API_KEY` en `.env` con tu clave.
 
 4. **Ejecuta la aplicación en modo desarrollo**:
    ```bash
