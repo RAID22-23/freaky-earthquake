@@ -29,6 +29,7 @@ const Home: React.FC = () => {
         ? `${BASE_URL}/search/movie?api_key=${API_KEY}&query=${query}&page=${page}`
         : `${BASE_URL}/movie/popular?api_key=${API_KEY}&page=${page}`;
       const response = await axios.get(endpoint); // Realiza la petición
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setMovies(response.data.results); // Actualiza las películas
       setTotalPages(response.data.total_pages); // Actualiza el total de páginas
     } catch (error) {
