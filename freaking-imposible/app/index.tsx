@@ -36,14 +36,17 @@ export default function Index() {
   const isFetchingRef = useRef(false);
 
   // Prefetch movies for a page (idempotent, only caches)
-  const prefetchNextPage = useCallback((page: number) => {
-    if (!page || page > totalPages) return;
-    const qKey = activeQuery ?? '';
+  const prefetchNextPage = useCallback((page: number, q?: string) => {
+    if (!page) return;
+    const queryToCheck = (q ?? activeQuery) ?? '';
+    const currentTotalPages = queryToCheck === activeQuery ? totalPages : Infinity;
+    if (page > currentTotalPages) return;
+    const qKey = (q ?? activeQuery) ?? '';
     const setPages = prefetchPagesMapRef.current.get(qKey) ?? new Set<number>();
     if (setPages.has(page)) return;
     setPages.add(page);
     prefetchPagesMapRef.current.set(qKey, setPages);
-    apiPrefetchMovies(activeQuery, page).catch(() => {});
+    apiPrefetchMovies(q ?? activeQuery, page).catch(() => {});
   }, [activeQuery, totalPages]);
 
   // fetch movies with dedupe and loaded-page checks
@@ -101,8 +104,12 @@ export default function Index() {
   const handleSearch = () => {
     setActiveQuery(searchQuery);
     setCurrentPage(1);
+    // Reset loaded page tracking for the new query, clear prefetch tracking and visible ids
     loadedPagesRef.current.set(searchQuery ?? '', new Set<number>());
-    prefetchNextPage(2);
+    prefetchPagesMapRef.current.set(searchQuery ?? '', new Set<number>());
+    lastVisibleIdsRef.current = [];
+    // Prefetch page 2 for the new search query explicitly
+    prefetchNextPage(2, searchQuery);
   };
 
   const handleEndReached = () => {
