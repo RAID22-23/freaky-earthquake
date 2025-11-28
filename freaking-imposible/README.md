@@ -50,6 +50,7 @@ Si prefieres no establecer la variable de entorno en tu shell, puedes colocar la
 - Pantalla de Detalles con carousel, badges y chips: `app/movie/[id].tsx`.
 - Persistencia de favoritos con AsyncStorage: `app/_context/MovieContext.tsx`.
 - Scroll infinito y optimizaciones de `FlatList` para rendimiento.
+- Prefetch y caching: la app ahora prefetch las imágenes y detalles de las películas visibles y en la siguiente página, usando una cache en memoria con persistencia limitada, mejorando la velocidad al navegar entre pantallas.
 
 ## Pruebas rápidas
 1. Inicia la app:
@@ -65,6 +66,7 @@ npx expo start
 - Buscar y navegar por resultados (grid + animaciones).
 - Agregar/Remover favoritos desde un card o desde pantalla de detalles; verificar toast y que se mantenga tras reiniciar app.
 - Pulsar hasta el final para activar scroll infinito.
+ - Comprobar la velocidad de carga al abrir una película (prefetch de detalle + poster), y que el scroll carga más rápido por la caché.
 
 In the output, you'll find options to open the app in a
 

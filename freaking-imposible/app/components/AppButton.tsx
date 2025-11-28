@@ -1,43 +1,51 @@
 import React from 'react';
-import { Pressable, Text, StyleSheet } from 'react-native';
+import { Pressable, PressableProps, Text, StyleSheet } from 'react-native';
 import { Shadow } from '../utils/styles';
 import { useTheme } from '../_context/ThemeProvider';
 
-interface Props {
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
+
+interface Props extends PressableProps {
   children: React.ReactNode;
-  onPress?: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
-  disabled?: boolean;
-  style?: any;
+  variant?: ButtonVariant;
 }
 
-export default function AppButton({ children, onPress, variant = 'primary', disabled, style }: Props) {
+export default function AppButton({ children, variant = 'primary', style, disabled, ...rest }: Props) {
   const { colors, sizing, fonts } = useTheme();
   const backgroundColor = variant === 'primary' ? colors.primary : variant === 'secondary' ? colors.card : 'transparent';
-  const contentColor = variant === 'primary' ? '#fff' : variant === 'danger' ? '#fff' : variant === 'success' ? '#fff' : colors.text;
-  // variant colors
+  const contentColor = variant === 'primary' || variant === 'danger' || variant === 'success' ? '#fff' : colors.text;
   const variantBackground = variant === 'danger' ? colors.danger : variant === 'success' ? colors.success : backgroundColor;
+
+  const baseStyle = [
+    styles.button,
+    { borderRadius: sizing.radius, paddingVertical: Math.round(sizing.gutter * 0.6), paddingHorizontal: Math.round(sizing.gutter * 1.2) },
+    variant === 'secondary' && styles.secondary,
+    variant === 'ghost' && { backgroundColor: 'transparent' },
+    style,
+    (Shadow.small as any),
+  ];
 
   return (
     <Pressable
-      onPress={disabled ? undefined : onPress}
+      {...rest}
+      disabled={disabled}
       android_ripple={{ color: '#0000001a' }}
       style={({ pressed }) => [
-        styles.button,
-        { borderRadius: sizing.radius, paddingVertical: Math.round(sizing.gutter * 0.6), paddingHorizontal: Math.round(sizing.gutter * 1.2) },
-        { backgroundColor: pressed ? variantBackground + 'cc' : variantBackground, opacity: disabled ? 0.6 : 1 },
-        variant === 'secondary' && styles.secondary,
-        variant === 'ghost' && { backgroundColor: 'transparent' },
-        style,
-        (Shadow.small as any)
+        ...baseStyle,
+        { backgroundColor: pressed ? (variantBackground + 'cc') : variantBackground, opacity: disabled ? 0.6 : 1 },
       ]}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled: disabled ?? undefined }}
     >
-      <Text style={[styles.text, { color: contentColor, fontSize: fonts.sm }]}>{children}</Text>
+      {typeof children === 'string' || typeof children === 'number' ? (
+        <Text style={[styles.text, { color: contentColor, fontSize: fonts.sm }]}>{children}</Text>
+      ) : (
+        children
+      )}
     </Pressable>
   );
 }
+
 
 const styles = StyleSheet.create({
   button: { alignItems: 'center', justifyContent: 'center' },

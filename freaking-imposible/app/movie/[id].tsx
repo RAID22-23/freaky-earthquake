@@ -6,9 +6,8 @@ import { useTheme } from '../_context/ThemeProvider';
 import { useMovieContext } from '../_context/MovieContext';
 import { useToast } from '../_context/ToastContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import axios from 'axios';
+import {fetchMovieDetails} from '../utils/api'
 import type { Movie } from '../_context/MovieContext';
-import { EXPO_PUBLIC_API_KEY } from '../utils/config';
 // Removed direct COLORS import to use theme via `useTheme`.
 
 export default function MovieDetails() {
@@ -23,13 +22,8 @@ export default function MovieDetails() {
   useEffect(() => {
     (async () => {
       try {
-        if (!EXPO_PUBLIC_API_KEY) {
-          Alert.alert('API Key missing', 'Please configure the EXPO_PUBLIC_API_KEY');
-          setLoading(false);
-          return;
-        }
-        const resp = await axios.get(`https://api.themoviedb.org/3/movie/${id}?api_key=${EXPO_PUBLIC_API_KEY}`);
-        setMovie(resp.data);
+        const data = await fetchMovieDetails(String(id));
+        setMovie(data);
       } catch (e) {
         console.error(e);
         Alert.alert('Error', 'Failed to load movie details');

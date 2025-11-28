@@ -4,6 +4,7 @@ import AppButton from './AppButton';
 import AppIconButton from './AppIconButton';
 import { calcCardWidth } from '../utils/layout';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import { prefetchMovieDetails } from '../utils/api';
 import { useMovieContext, Movie } from "../_context/MovieContext";
 import { useToast } from "../_context/ToastContext";
 import { useTheme } from "../_context/ThemeProvider";
@@ -25,6 +26,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, cardWidth, onPress }) => {
   useEffect(() => { anim.value = withTiming(1, { duration: 250 }); }, [anim]);
 
   const toast = useToast();
+  const preventNavRef = React.useRef(false);
   const handleFavourite = () => {
     if (isFavourite(movie.id)) {
       removeFavourite(movie.id);
@@ -48,8 +50,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, cardWidth, onPress }) => {
   const rFavStyle = useAnimatedStyle(() => ({ transform: [{ scale: favAnim.value }] }));
 
   // sizing already taken from useTheme above
+  const handleActionPress = (fn: () => void) => {
+    // set flag so parent nav is prevented briefly
+    preventNavRef.current = true;
+    try { fn(); } finally {
+      setTimeout(() => { preventNavRef.current = false; }, 200);
+    }
+  };
+
+  const handleCardPress = () => {
+    if (preventNavRef.current) return;
+    // Prefetch the details for this movie to speed up navigation
+    try { prefetchMovieDetails([movie.id]); } catch { }
+    onPress?.();
+  };
+
   return (
-    <Pressable onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut} android_ripple={{ color: '#0000001a' }}>
+    <Pressable onPress={handleCardPress} onPressIn={handlePressIn} onPressOut={handlePressOut} android_ripple={{ color: '#0000001a' }}>
       <Reanimated.View style={[styles.card, Shadow.small as any, rStyle, { backgroundColor: colors.card, width: widthPx, margin: sizing.gutter / 1.5, borderRadius: sizing.radius }]} >
         <View style={[styles.accentStrip, { backgroundColor: colors.accent, width: Math.max(4, Math.round(sizing.gutter / 2)) }]} />
       <Image
@@ -62,10 +79,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, cardWidth, onPress }) => {
         <Text style={[styles.date, { color: colors.muted, fontSize: fonts.sm }]}>{movie.release_date}</Text>
         <View style={[styles.actions, { marginTop: Math.round(sizing.gutter * 0.5) }]}>
           <Reanimated.View style={rFavStyle}>
-            <AppIconButton name={isFavourite(movie.id) ? 'heart' : 'heart-outline'} size={18} color={isFavourite(movie.id) ? colors.danger : colors.muted} onPress={() => { handleFavourite(); favAnim.value = withSpring(1.3); setTimeout(() => { favAnim.value = withSpring(1);}, 100); }} style={[styles.iconButton, { width: 36, height: 36, padding: 0, borderRadius: 36 }]} accessibilityLabel={isFavourite(movie.id) ? 'Remove from favourites' : 'Add to favourites'} />
+            <AppIconButton name={isFavourite(movie.id) ? 'heart' : 'heart-outline'} size={18} color={isFavourite(movie.id) ? colors.danger : colors.muted} onPress={() => handleActionPress(() => { handleFavourite(); favAnim.value = withSpring(1.3); setTimeout(() => { favAnim.value = withSpring(1);}, 100); })} style={[styles.iconButton, { width: 36, height: 36, padding: 0, borderRadius: 36 }]} accessibilityLabel={isFavourite(movie.id) ? 'Remove from favourites' : 'Add to favourites'} />
           </Reanimated.View>
           <AppButton
-            onPress={handleFavourite}
+            onPress={() => handleActionPress(handleFavourite)}
             variant={isFavourite(movie.id) ? 'danger' : 'primary'}
             style={[styles.actionButton, { paddingHorizontal: 10 }]}
             >

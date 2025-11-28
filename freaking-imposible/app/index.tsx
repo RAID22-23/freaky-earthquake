@@ -1,81 +1,109 @@
-import React, { useEffect, useState, useRef } from "react";
-import { Text, View, TextInput, FlatList, ActivityIndicator, StyleSheet, Alert, SafeAreaView, useWindowDimensions } from "react-native";
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { Text, View, TextInput, FlatList, ActivityIndicator, StyleSheet, Alert, SafeAreaView, useWindowDimensions, Image, Platform, AppState } from 'react-native';
 import { Shadow } from './utils/styles';
 import AppButton from './components/AppButton';
-import { useToast } from "./_context/ToastContext";
-import { useRouter } from "expo-router";
-import FilterBar from "./components/FilterBar";
-import axios from "axios";
-import MovieCard from "./components/MovieCard";
-import NavBar from "./components/NavBar";
-import type { Movie } from "./_context/MovieContext";
-
-import { EXPO_PUBLIC_API_KEY } from "./utils/config";
-import { useTheme } from "./_context/ThemeProvider";
+import { useToast } from './_context/ToastContext';
+import { useRouter } from 'expo-router';
+import FilterBar from './components/FilterBar';
+import { fetchMovies as apiFetchMovies, prefetchMovies as apiPrefetchMovies, prefetchMovieDetails as apiPrefetchMovieDetails } from './utils/api';
+import MovieCard from './components/MovieCard';
+import NavBar from './components/NavBar';
+import type { Movie } from './_context/MovieContext';
+import { useTheme } from './_context/ThemeProvider';
 import { getNumColumns, calcCardWidth } from './utils/layout';
-const API_KEY = EXPO_PUBLIC_API_KEY;
-const BASE_URL = "https://api.themoviedb.org/3";
 
 export default function Index() {
   const [movies, setMovies] = useState<Movie[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [activeQuery, setActiveQuery] = useState("");
+  const [activeQuery, setActiveQuery] = useState('');
   const [minRating, setMinRating] = useState(0);
   const router = useRouter();
   const { width } = useWindowDimensions();
-
   const numColumns = getNumColumns(width);
   const cardWidth = calcCardWidth(width, numColumns);
   const { colors, sizing, fonts } = useTheme();
-
   const toast = useToast();
+
+  // Guards and caches
+  const prefetchPagesMapRef = useRef<Map<string, Set<number>>>(new Map());
+  const fetchingQueryRef = useRef<string | null>(null);
+  const loadedPagesRef = useRef<Map<string, Set<number>>>(new Map());
+  const lastVisibleIdsRef = useRef<number[]>([]);
   const isFetchingRef = useRef(false);
-  const fetchMovies = React.useCallback(async (query: string = "", page: number = 1) => {
-    if (isFetchingRef.current) return;
+
+  // Prefetch movies for a page (idempotent, only caches)
+  const prefetchNextPage = useCallback((page: number) => {
+    if (!page || page > totalPages) return;
+    const qKey = activeQuery ?? '';
+    const setPages = prefetchPagesMapRef.current.get(qKey) ?? new Set<number>();
+    if (setPages.has(page)) return;
+    setPages.add(page);
+    prefetchPagesMapRef.current.set(qKey, setPages);
+    apiPrefetchMovies(activeQuery, page).catch(() => {});
+  }, [activeQuery, totalPages]);
+
+  // fetch movies with dedupe and loaded-page checks
+  const fetchMovies = useCallback(async (query = '', page = 1) => {
+    const qKey = query ?? '';
+    const loadedSet = loadedPagesRef.current.get(qKey) ?? new Set<number>();
+    if (loadedSet.has(page)) {
+      // already loaded this page for this query
+      return;
+    }
+    // allow fetch if currently fetching a different query
+    if (isFetchingRef.current && fetchingQueryRef.current === query) return;
+    fetchingQueryRef.current = query;
     isFetchingRef.current = true;
-    if (page > 1) setLoadingMore(true);
-    else setLoading(true);
+    if (page > 1) setLoadingMore(true); else setLoading(true);
     try {
-      if (!API_KEY) {
-        Alert.alert('API Key missing', 'Please configure the EXPO_PUBLIC_API_KEY in your environment or app.json');
-        setMovies([]);
-        setTotalPages(1);
-        return;
+      const response = await apiFetchMovies(query, page);
+      if (page > 1) {
+        setMovies((prev) => {
+          const existing = new Set(prev.map((m) => m.id));
+          const filtered = response.results.filter((r: any) => !existing.has(r.id));
+          return [...prev, ...filtered];
+        });
+      } else {
+        setMovies(response.results);
       }
-      const endpoint = query
-        ? `${BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&page=${page}`
-        : `${BASE_URL}/movie/popular?api_key=${API_KEY}&page=${page}`;
-      const response = await axios.get(endpoint);
-      if (page > 1) setMovies((prev) => [...prev, ...response.data.results]);
-      else setMovies(response.data.results);
-      setTotalPages(response.data.total_pages);
+      setTotalPages(response.total_pages);
+      // mark as loaded
+      const setPages = loadedPagesRef.current.get(qKey) ?? new Set<number>();
+      setPages.add(page);
+      loadedPagesRef.current.set(qKey, setPages);
+      // prefetch next page
+      if (response.total_pages && response.total_pages > page) {
+        prefetchNextPage(page + 1);
+      }
     } catch (error) {
-      console.error("Error fetching movies:", error);
+      console.error('Error fetching movies:', error);
       toast.showToast('There was a problem fetching movies', 'error');
       Alert.alert('Network error', 'There was a problem fetching movies. Retry?', [
         { text: 'Retry', onPress: () => fetchMovies(query, page) },
         { text: 'Cancel', style: 'cancel' },
       ]);
     } finally {
-      if (page > 1) setLoadingMore(false);
-      else setLoading(false);
+      if (page > 1) setLoadingMore(false); else setLoading(false);
+      fetchingQueryRef.current = null;
       isFetchingRef.current = false;
     }
-  }, [toast]);
+  }, [toast, prefetchNextPage]);
+
   useEffect(() => {
     fetchMovies(activeQuery, currentPage);
   }, [activeQuery, currentPage, fetchMovies]);
 
+  // Reset loaded pages for a new search
   const handleSearch = () => {
     setActiveQuery(searchQuery);
     setCurrentPage(1);
+    loadedPagesRef.current.set(searchQuery ?? '', new Set<number>());
+    prefetchNextPage(2);
   };
-
-  // Next/Prev removed in favor of infinite scroll
 
   const handleEndReached = () => {
     if (!isFetchingRef.current && currentPage < totalPages) {
@@ -83,7 +111,50 @@ export default function Index() {
     }
   };
 
-  // Prev removed in favor of infinite scroll
+  const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (!viewableItems || viewableItems.length === 0) return;
+    const ids = viewableItems.map((v: any) => v.item?.id).filter(Boolean);
+    // Save visible ids to allow prefetch on focus
+    lastVisibleIdsRef.current = ids;
+    // prefetch details for visible items
+    apiPrefetchMovieDetails(ids).catch(() => {});
+    // prefetch next page if near the end
+    const lastVisible = viewableItems[viewableItems.length - 1];
+    if (!lastVisible) return;
+    const lastIndex = lastVisible.index ?? 0;
+    if ((movies.length - lastIndex) <= (numColumns * 3)) {
+      prefetchNextPage(currentPage + 1);
+    }
+    // prefetch visible posters
+    try {
+      viewableItems.forEach((v: any) => {
+        const m = v?.item;
+        if (!m) return;
+        if (m.poster_path) Image.prefetch(`https://image.tmdb.org/t/p/w500${m.poster_path}`);
+      });
+    } catch { }
+  }).current;
+
+  // When window or app regains focus, prefetch visible details & next page
+  useEffect(() => {
+    const doPrefetchOnFocus = () => {
+      if (lastVisibleIdsRef.current && lastVisibleIdsRef.current.length > 0) {
+        apiPrefetchMovieDetails(lastVisibleIdsRef.current).catch(() => {});
+      }
+      prefetchNextPage(currentPage + 1);
+    };
+    // web window focus
+    if (Platform.OS === 'web') {
+      window.addEventListener('focus', doPrefetchOnFocus);
+      return () => window.removeEventListener('focus', doPrefetchOnFocus);
+    }
+    // mobile AppState
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') doPrefetchOnFocus();
+    });
+    return () => sub.remove();
+  }, [currentPage, prefetchNextPage]);
 
   return (
     <SafeAreaView style={[styles.page, { backgroundColor: colors.background, padding: sizing.gutter }]}> 
@@ -113,14 +184,14 @@ export default function Index() {
         columnWrapperStyle={numColumns > 1 ? { justifyContent: 'space-between' } : undefined}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChanged}
         ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 10 }} /> : null}
         initialNumToRender={8}
         windowSize={10}
         removeClippedSubviews={true}
         maxToRenderPerBatch={8}
       />
-      {/* Pagination removed - infinite scroll replaces Prev/Next buttons */}
-      {/* Modal replaced by dedicated details screen */}
     </SafeAreaView>
   );
 }
