@@ -1,10 +1,10 @@
 import React from "react";
 import { Text, FlatList, StyleSheet, SafeAreaView, useWindowDimensions } from "react-native";
-import NavBar from "./components/NavBar";
+import NavBar from "./_components/NavBar";
 import { useMovieContext } from "./_context/MovieContext";
 import { useTheme } from "./_context/ThemeProvider";
-import { getNumColumns, calcCardWidth } from './utils/layout';
-import MovieCard from "./components/MovieCard";
+import { getNumColumns, calcCardWidth } from './_utils/layout';
+import MovieCard from "./_components/MovieCard";
 
 export default function Favourites() {
   const { favourites } = useMovieContext();

@@ -1,16 +1,16 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Text, View, TextInput, FlatList, ActivityIndicator, StyleSheet, Alert, SafeAreaView, useWindowDimensions, Image, Platform, AppState } from 'react-native';
-import { Shadow } from './utils/styles';
-import AppButton from './components/AppButton';
+import { Shadow } from './_utils/styles';
+import AppButton from './_components/AppButton';
 import { useToast } from './_context/ToastContext';
 import { useRouter } from 'expo-router';
-import FilterBar from './components/FilterBar';
-import { fetchMovies as apiFetchMovies, prefetchMovies as apiPrefetchMovies, prefetchMovieDetails as apiPrefetchMovieDetails } from './utils/api';
-import MovieCard from './components/MovieCard';
-import NavBar from './components/NavBar';
+import FilterBar from './_components/FilterBar';
+import { fetchMovies as apiFetchMovies, prefetchMovies as apiPrefetchMovies, prefetchMovieDetails as apiPrefetchMovieDetails } from './_utils/api';
+import MovieCard from './_components/MovieCard';
+import NavBar from './_components/NavBar';
 import type { Movie } from './_context/MovieContext';
 import { useTheme } from './_context/ThemeProvider';
-import { getNumColumns, calcCardWidth } from './utils/layout';
+import { getNumColumns, calcCardWidth } from './_utils/layout';
 
 export default function Index() {
   const [movies, setMovies] = useState<Movie[]>([]);

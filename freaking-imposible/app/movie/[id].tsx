@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView, Alert, SafeAreaView, Dimensions } from 'react-native';
-import { Shadow } from '../utils/styles';
+import { Shadow } from '../_utils/styles';
 import AppButton from '../components/AppButton';
 import { useTheme } from '../_context/ThemeProvider';
 import { useMovieContext } from '../_context/MovieContext';
 import { useToast } from '../_context/ToastContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import {fetchMovieDetails} from '../utils/api'
+import {fetchMovieDetails} from '../_utils/api'
 import type { Movie } from '../_context/MovieContext';
 // Removed direct COLORS import to use theme via `useTheme`.
 

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Animated, Text, StyleSheet } from 'react-native';
-import { COLORS } from '../utils/theme';
-import { Shadow } from '../utils/styles';
+import { COLORS } from '../_utils/theme';
+import { Shadow } from '../_utils/styles';
 
 export type ToastType = 'info' | 'success' | 'error';
 
