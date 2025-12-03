@@ -23,7 +23,7 @@ export default function Favourites() {
 
   const renderMovieItem = useCallback(({ item }: { item: any }) => (
     <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} isFavourite={true} onToggleFavourite={() => removeFavourite(item.id)} />
-  ), [cardWidth, navigateToMovie]);
+  ), [cardWidth, navigateToMovie, removeFavourite]);
 
   const isWeb = Platform.OS === 'web';
   const cardVerticalMargin = Math.round(sizing.gutter * 0.6);
