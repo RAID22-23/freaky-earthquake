@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Text, View, TextInput, FlatList, ActivityIndicator, StyleSheet, Alert, SafeAreaView, useWindowDimensions, Image, Platform, AppState } from 'react-native';
+import { Text, View, TextInput, FlatList, ActivityIndicator, StyleSheet, Alert, SafeAreaView, useWindowDimensions, Image, Platform, AppState, Animated } from 'react-native';
 import { Shadow } from './_utils/styles';
+import { incrementRenderCount, getRenderCount, useRenderCounter } from './_utils/renderCounter';
 import AppButton from './_components/AppButton';
 import { useToast } from './_context/ToastContext';
 import { useRouter } from 'expo-router';
 import FilterBar from './_components/FilterBar';
 import { fetchMovies as apiFetchMovies, prefetchMovies as apiPrefetchMovies, prefetchMovieDetails as apiPrefetchMovieDetails } from './_utils/api';
 import MovieCard from './_components/MovieCard';
+import { useMovieContext } from './_context/MovieContext';
 import NavBar from './_components/NavBar';
 import type { Movie } from './_context/MovieContext';
 import { useTheme } from './_context/ThemeProvider';
@@ -14,6 +16,7 @@ import { getNumColumns, calcCardWidth } from './_utils/layout';
 
 
 export default function Index() {
+  useRenderCounter('Index');
   const [movies, setMovies] = useState<Movie[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,13 +31,48 @@ export default function Index() {
   const cardWidth = calcCardWidth(width, numColumns);
   const { colors, sizing, fonts } = useTheme();
   const toast = useToast();
+  const { favourites, addFavourite, removeFavourite } = useMovieContext();
+
+  // Prepare stable references and maps to prevent handler identity churn and unnecessary re-renders
+  const favouritesSet = React.useMemo(() => new Set(favourites.map((m) => m.id)), [favourites]);
+  const addRef = useRef(addFavourite);
+  const removeRef = useRef(removeFavourite);
+  const favSetRef = useRef(favouritesSet);
+  const moviesMapRef = useRef<Map<number, Movie>>(new Map());
+  const toggleHandlersRef = useRef<Map<number, () => void>>(new Map());
+
+  useEffect(() => { addRef.current = addFavourite; removeRef.current = removeFavourite; }, [addFavourite, removeFavourite]);
+  useEffect(() => { favSetRef.current = favouritesSet; }, [favouritesSet]);
+  useEffect(() => { const map = moviesMapRef.current; map.clear(); movies.forEach((m) => map.set(m.id, m)); }, [movies]);
+
+  const getToggleHandler = useCallback((id: number) => {
+    const map = toggleHandlersRef.current;
+    let fn = map.get(id);
+    if (fn) return fn;
+    fn = () => {
+      const isFavNow = favSetRef.current.has(id);
+      if (isFavNow) removeRef.current(id);
+      else {
+        const movie = moviesMapRef.current.get(id);
+        if (movie) addRef.current(movie);
+      }
+    };
+    map.set(id, fn);
+    return fn;
+  }, []);
 
   // Guards and caches
   const prefetchPagesMapRef = useRef<Map<string, Set<number>>>(new Map());
   const fetchingQueryRef = useRef<string | null>(null);
   const loadedPagesRef = useRef<Map<string, Set<number>>>(new Map());
   const lastVisibleIdsRef = useRef<number[]>([]);
+  const lastVisibleIndexRef = useRef<number | null>(null);
+  const isInteractingRef = useRef(false);
+  const listRef = useRef<any>(null);
   const isFetchingRef = useRef(false);
+  const pendingPageResultsRef = useRef<Map<string, Map<number, Movie[]>>>(new Map());
+  const pendingCommitTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const [isSearchPending, setIsSearchPending] = useState(false);
 
   // Prefetch movies for a page (idempotent, only caches)
   const prefetchNextPage = useCallback((page: number, q?: string) => {
@@ -48,6 +86,7 @@ export default function Index() {
     setPages.add(page);
     prefetchPagesMapRef.current.set(qKey, setPages);
     apiPrefetchMovies(q ?? activeQuery, page).catch(() => {});
+    if (__DEV__) console.debug('[prefetchNextPage] scheduled', qKey, page);
   }, [activeQuery, totalPages]);
 
   // fetch movies with dedupe and loaded-page checks
@@ -55,30 +94,72 @@ export default function Index() {
     const qKey = query ?? '';
     const loadedSet = loadedPagesRef.current.get(qKey) ?? new Set<number>();
     if (loadedSet.has(page)) {
-      // already loaded this page for this query
+      if (__DEV__) console.debug('[fetchMovies] already loaded', qKey, page, 'moviesLen', movies.length, 'pendingPages', Array.from((pendingPageResultsRef.current.get(qKey) ?? new Map()).keys()));
+      // already loaded this page for this query - ensure currentPage reflects that for active query
+      if (qKey === activeQuery) setCurrentPage((p) => Math.max(p, page));
       return;
     }
     // allow fetch if currently fetching a different query
-    if (isFetchingRef.current && fetchingQueryRef.current === query) return;
+    if (isFetchingRef.current && fetchingQueryRef.current === query) {
+      if (__DEV__) console.debug('[fetchMovies] currently fetching', query, page);
+      return;
+    }
     fetchingQueryRef.current = query;
     isFetchingRef.current = true;
     if (page > 1) setLoadingMore(true); else setLoading(true);
     try {
       const response = await apiFetchMovies(query, page);
       if (page > 1) {
-        setMovies((prev) => {
-          const existing = new Set(prev.map((m) => m.id));
-          const filtered = response.results.filter((r: any) => !existing.has(r.id));
-          return [...prev, ...filtered];
-        });
+        // Buffer results and batch commit for smoother updates
+        const qKey = query ?? '';
+        const mapForQuery = pendingPageResultsRef.current.get(qKey) ?? new Map<number, Movie[]>();
+        mapForQuery.set(page, response.results);
+        pendingPageResultsRef.current.set(qKey, mapForQuery);
+        // schedule commit shortly if not already scheduled
+        if (!pendingCommitTimersRef.current.get(qKey)) {
+          const timer = setTimeout(() => {
+            const pagesMap = pendingPageResultsRef.current.get(qKey);
+            if (!pagesMap) return;
+            const loadedSet = loadedPagesRef.current.get(qKey) ?? new Set<number>();
+            // Sort pages to append in order
+            const pagesNums = Array.from(pagesMap.keys()).sort((a, b) => a - b);
+            let append: Movie[] = [];
+            pagesNums.forEach((p) => {
+              if (!loadedSet.has(p)) {
+                const results = pagesMap.get(p) ?? [];
+                const existing = new Set((movies as Movie[]).map((m) => m.id));
+                const filtered = results.filter((r) => !existing.has(r.id));
+                append = [...append, ...filtered];
+                loadedSet.add(p);
+              }
+            });
+            if (append.length > 0 && qKey === activeQuery) {
+              if (__DEV__) console.debug('[commit] appending pages', pagesNums, 'append', append.length, 'moviesBefore', movies.length);
+              setMovies((prev) => [...prev, ...append]);
+              if (__DEV__) console.debug('[commit] appended, newLen', (movies as Movie[]).length + append.length);
+              // update current page to the last page we appended so that nextPage logic continues
+              const lastAppended = pagesNums[pagesNums.length - 1] ?? page;
+              setCurrentPage((p) => Math.max(p, lastAppended));
+            }
+            // mark loaded and clear buffer
+            loadedPagesRef.current.set(qKey, loadedSet);
+            pendingPageResultsRef.current.delete(qKey);
+            pendingCommitTimersRef.current.delete(qKey);
+          }, 60);
+          pendingCommitTimersRef.current.set(qKey, timer as any);
+        }
       } else {
         setMovies(response.results);
+        // make sure base page is recorded
+        if (qKey === activeQuery) setCurrentPage(1);
       }
       setTotalPages(response.total_pages);
-      // mark as loaded
-      const setPages = loadedPagesRef.current.get(qKey) ?? new Set<number>();
-      setPages.add(page);
-      loadedPagesRef.current.set(qKey, setPages);
+      // mark as loaded only for page 1 (replace) — for page > 1 we will mark once we append the results
+      if (page === 1) {
+        const setPages = loadedPagesRef.current.get(qKey) ?? new Set<number>();
+        setPages.add(page);
+        loadedPagesRef.current.set(qKey, setPages);
+      }
       // prefetch next page
       if (response.total_pages && response.total_pages > page) {
         prefetchNextPage(page + 1);
@@ -95,43 +176,70 @@ export default function Index() {
       fetchingQueryRef.current = null;
       isFetchingRef.current = false;
     }
-  }, [toast, prefetchNextPage]);
+  }, [toast, prefetchNextPage, movies, activeQuery]);
 
   useEffect(() => {
     fetchMovies(activeQuery, currentPage);
   }, [activeQuery, currentPage, fetchMovies]);
 
   // Reset loaded pages for a new search
-  const handleSearch = () => {
-    setActiveQuery(searchQuery);
-    setCurrentPage(1);
-    // Reset loaded page tracking for the new query, clear prefetch tracking and visible ids
-    loadedPagesRef.current.set(searchQuery ?? '', new Set<number>());
-    prefetchPagesMapRef.current.set(searchQuery ?? '', new Set<number>());
-    lastVisibleIdsRef.current = [];
-    // Prefetch page 2 for the new search query explicitly
-    prefetchNextPage(2, searchQuery);
+  const handleSearch = async () => {
+    // soft-search: fetch new results first and only replace the shown list once fully loaded
+    if (!searchQuery) {
+      setActiveQuery('');
+      setCurrentPage(1);
+      setMovies([]);
+      return;
+    }
+    setIsSearchPending(true);
+    try {
+      const response = await apiFetchMovies(searchQuery, 1);
+      // Replace the list only once results are available
+      setMovies(response.results);
+      setActiveQuery(searchQuery);
+      setCurrentPage(1);
+      setTotalPages(response.total_pages);
+      // reset loaded pages/write cache
+      loadedPagesRef.current.set(searchQuery ?? '', new Set<number>().add(1));
+      // clear any pending page results or timers for this query
+      pendingPageResultsRef.current.delete(searchQuery ?? '');
+      const t = pendingCommitTimersRef.current.get(searchQuery ?? '');
+      if (t) { clearTimeout(t); pendingCommitTimersRef.current.delete(searchQuery ?? ''); }
+      prefetchNextPage(2, searchQuery);
+    } catch (e) {
+      console.error('Search error', e);
+    } finally {
+      setIsSearchPending(false);
+    }
+    return;
   };
 
-  const handleEndReached = () => {
-    if (!isFetchingRef.current && currentPage < totalPages) {
-      setCurrentPage((p) => p + 1);
-    }
-  };
+  const handleEndReached = useCallback(() => {
+    if (isFetchingRef.current) return;
+    const nextPage = currentPage + 1;
+    if (nextPage > totalPages) return;
+    // directly trigger fetch of next page and then update currentPage
+    if (__DEV__) console.debug('[handleEndReached] requesting page', nextPage, 'current', currentPage, 'total', totalPages, 'moviesLen', movies.length, 'filteredLen', filteredMovies.length);
+    fetchMovies(activeQuery, nextPage).then(() => { setCurrentPage((p) => Math.max(p, nextPage)); }).catch(() => { /* ignore */ });
+  }, [currentPage, totalPages, fetchMovies, activeQuery]);
 
   const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+  const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     if (!viewableItems || viewableItems.length === 0) return;
     const ids = viewableItems.map((v: any) => v.item?.id).filter(Boolean);
     // Save visible ids to allow prefetch on focus
     lastVisibleIdsRef.current = ids;
+    // Save the smallest index (topmost visible item) so we can restore after data updates
+    const indices = viewableItems.map((v: any) => v.index).filter((i: any) => typeof i === 'number');
+    lastVisibleIndexRef.current = indices.length ? Math.min(...indices) : null;
     // prefetch details for visible items
     apiPrefetchMovieDetails(ids).catch(() => {});
     // prefetch next page if near the end
     const lastVisible = viewableItems[viewableItems.length - 1];
     if (!lastVisible) return;
     const lastIndex = lastVisible.index ?? 0;
-    if ((movies.length - lastIndex) <= (numColumns * 3)) {
+    // Use filtered movies length (actual list being rendered) when calculating proximity
+    if ((filteredMoviesRef.current.length - lastIndex) <= (numColumns * 3)) {
       prefetchNextPage(currentPage + 1);
     }
     // prefetch visible posters
@@ -142,7 +250,7 @@ export default function Index() {
         if (m.poster_path) Image.prefetch(`https://image.tmdb.org/t/p/w500${m.poster_path}`);
       });
     } catch { }
-  }).current;
+  }, [prefetchNextPage, currentPage, numColumns]);
 
   // When window or app regains focus, prefetch visible details & next page
   useEffect(() => {
@@ -171,20 +279,79 @@ export default function Index() {
   }, [router]);
 
   // Memoized renderItem to avoid re-rendering the whole list when unrelated state changes
-  const renderMovieItem = useCallback(({ item }: { item: Movie }) => (
-    <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} />
-  ), [cardWidth, navigateToMovie]);
+  const renderMovieItem = useCallback(({ item }: { item: Movie }) => {
+    if (__DEV__) {
+      incrementRenderCount(`Movie-${item.id}`);
+      incrementRenderCount('MovieAll');
+    }
+    const isFav = favSetRef.current.has(item.id);
+    const toggle = getToggleHandler(item.id);
+    return <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} isFavourite={isFav} onToggleFavourite={toggle} />;
+  }, [cardWidth, navigateToMovie, getToggleHandler]);
 
-  // Provide getItemLayout for constant-height rows (approximate) to help VirtualizedList
-  const itemHeight = Math.round(cardWidth * 1.4) + Math.round(sizing.gutter * 2) + Math.round(fonts.md * 2);
-  const getItemLayout = useCallback((data: any, index: number) => ({ length: itemHeight, offset: itemHeight * Math.floor(index / numColumns), index }), [itemHeight, numColumns]);
+  // Compute vertical margins and provide getItemLayout for constant-height rows to help VirtualizedList and avoid jumps.
+  const cardVerticalMargin = Math.round(sizing.gutter * 0.6); // matches MovieCard marginVertical
+  const itemHeight = Math.round(cardWidth * 1.4) + (cardVerticalMargin * 2) + Math.round(fonts.md * 2);
+  const getItemLayout = useCallback((data: any, index: number) => {
+    const row = Math.floor(index / numColumns);
+    return { length: itemHeight, offset: itemHeight * row, index };
+  }, [itemHeight, numColumns]);
 
   const isWeb = Platform.OS === 'web';
+  const listOpacity = React.useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // subtle fade when searching to avoid abrupt swap
+    Animated.timing(listOpacity, { toValue: isSearchPending ? 0.45 : 1, duration: 220, useNativeDriver: true }).start();
+  }, [isSearchPending, listOpacity]);
 
   const filteredMovies = React.useMemo(() => movies.filter((m) => (m.vote_average ?? 0) >= minRating), [movies, minRating]);
+  // keep a stable ref for filtered list for callback access without recreating handlers
+  const filteredMoviesRef = useRef(filteredMovies);
+  useEffect(() => { filteredMoviesRef.current = filteredMovies; }, [filteredMovies]);
+  // (we rely on a stable but updated callback for viewability, so refs for currentPage/numColumns are not needed)
+
+  // Restore scroll position if the list updates and we had a stable visible item before change
+  useEffect(() => {
+    if (!listRef.current) return;
+    // If the user is interacting (scrolling) do not adjust scroll position
+    if (isInteractingRef.current) return;
+    const prevTopId = lastVisibleIdsRef.current?.[0];
+    const prevTopIndex = lastVisibleIndexRef.current;
+    if (prevTopId != null) {
+      const newIndex = filteredMovies.findIndex((m) => m.id === prevTopId);
+      if (newIndex >= 0 && newIndex !== prevTopIndex) {
+        // Scroll to the new index so the same item stays visible
+        try { listRef.current?.scrollToIndex({ index: newIndex, animated: false }); } catch { }
+      } else if (newIndex < 0 && prevTopIndex != null) {
+        // If previous top ID no longer exists, keep the same index (clamped)
+        const newIdx = Math.min(prevTopIndex, Math.max(0, filteredMovies.length - 1));
+        try { listRef.current?.scrollToIndex({ index: newIdx, animated: false }); } catch { }
+      }
+    } else if (prevTopIndex != null) {
+      const idx = Math.min(prevTopIndex, Math.max(0, filteredMovies.length - 1));
+      try { listRef.current?.scrollToIndex({ index: idx, animated: false }); } catch { }
+    }
+  }, [filteredMovies]);
+
+  // Watchdog: if we're near the end, not actively fetching, and not currently interacting, try to load next page
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!listRef.current) return;
+      if (isInteractingRef.current) return;
+      if (isFetchingRef.current) return;
+      if (currentPage >= totalPages) return;
+      const lastIndex = lastVisibleIndexRef.current ?? 0;
+      if ((filteredMovies.length - lastIndex) <= (numColumns * 3)) {
+        if (__DEV__) console.debug('[watchdog] near end, requesting next page', currentPage + 1);
+        handleEndReached();
+      }
+    }, 1500);
+    return () => clearInterval(id);
+  }, [currentPage, totalPages, filteredMovies.length, numColumns, handleEndReached]);
 
   return (
-    <SafeAreaView style={[styles.page, { backgroundColor: colors.background, padding: sizing.gutter }]}>
+    <SafeAreaView style={[styles.page, { backgroundColor: colors.background }]}>
       <NavBar />
       <Text style={[styles.title, { color: colors.text, fontSize: fonts.xxl, marginBottom: sizing.gutter }]}>Movie App</Text>
       <View style={[styles.searchRow, { marginBottom: sizing.gutter }] }>
@@ -199,25 +366,50 @@ export default function Index() {
         </AppButton>
       </View>
       {loading && <ActivityIndicator size="large" style={{ marginVertical: sizing.gutter }} />}
-      <FilterBar value={minRating} onChange={setMinRating} />
+      <View style={{ paddingHorizontal: sizing.gutter }}>
+        <FilterBar value={minRating} onChange={setMinRating} />
+      </View>
+      <Animated.View style={{ flex: 1, opacity: listOpacity }}>
       <FlatList
+        ref={listRef}
         key={String(numColumns)}
-        data={filteredMovies}
+        data={isSearchPending ? (Array.from({ length: isWeb ? 12 : 8 }).map((_, i) => ({ __skeleton: true, id: -i })) as any[]) : (filteredMovies as any[])}
         numColumns={numColumns}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderMovieItem}
+        keyExtractor={(item, idx) => item && item.__skeleton ? `skeleton-${idx}` : item.id.toString()}
+        renderItem={(props) => {
+          const { item } = props as any;
+          if (item && item.__skeleton) {
+            return <MovieCard loading cardWidth={cardWidth} />;
+          }
+          return renderMovieItem(props as any);
+        }}
         getItemLayout={getItemLayout}
-        columnWrapperStyle={numColumns > 1 ? { justifyContent: 'space-between' } : undefined}
+        columnWrapperStyle={numColumns > 1 ? { justifyContent: 'space-between', paddingHorizontal: sizing.gutter } : { paddingHorizontal: sizing.gutter }}
+        contentContainerStyle={{ paddingVertical: Math.round(sizing.gutter * 0.6), paddingHorizontal: sizing.gutter }}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
+        onScrollBeginDrag={() => { isInteractingRef.current = true; }}
+        onScrollEndDrag={() => { isInteractingRef.current = false; }}
+        onMomentumScrollBegin={() => { isInteractingRef.current = true; }}
+        onMomentumScrollEnd={() => { isInteractingRef.current = false; }}
+        extraData={favourites.length}
         ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: Math.round(sizing.gutter * 0.8) }} /> : null}
-        initialNumToRender={isWeb ? 12 : 6}
-        windowSize={isWeb ? 14 : 7}
-        removeClippedSubviews={true}
+        initialNumToRender={isWeb ? 12 : 8}
+        windowSize={isWeb ? 14 : 9}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        maintainVisibleContentPosition={Platform.OS !== 'web' ? { minIndexForVisible: 0, autoscrollToTopThreshold: 5 } : undefined}
+        updateCellsBatchingPeriod={50}
         maxToRenderPerBatch={8}
       />
+      </Animated.View>
+      {__DEV__ && (
+        <View style={{ position: 'absolute', right: 10, bottom: 10, backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, borderRadius: 6 }}>
+          <Text style={{ color: '#fff', fontSize: 12 }}>Index: {getRenderCount('Index')}</Text>
+          <Text style={{ color: '#fff', fontSize: 12 }}>MovieRenders: {getRenderCount('MovieAll')}</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
