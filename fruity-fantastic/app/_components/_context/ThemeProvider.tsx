@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
-import { COLORS, COLORS_DARK, SIZING, FONT_SIZES } from '../_utils/theme';
+import { COLORS, COLORS_DARK, SIZING, FONT_SIZES } from '../../_utils/theme';
 import { useColorScheme } from 'react-native';
 
 interface ThemeContextType { colors: typeof COLORS; sizing: typeof SIZING; fonts: typeof FONT_SIZES; mode: 'light' | 'dark'; toggleTheme: () => void }

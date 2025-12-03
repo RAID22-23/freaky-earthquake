@@ -14,11 +14,11 @@ interface Props extends PressableProps {
 }
 
 export default function AppIconButton({ name, size = 18, color, style, variant = 'ghost', accessibilityLabel, ...rest }: Props) {
-  const { colors } = useTheme();
+  const { colors, sizing } = useTheme();
   const iconColor = color ?? (variant === 'primary' ? colors.card : variant === 'danger' ? colors.card : variant === 'success' ? colors.card : colors.text);
   const bg = variant === 'primary' ? colors.primary : variant === 'danger' ? colors.danger : variant === 'success' ? colors.success : 'transparent';
   return (
-    <AppButton {...rest} variant={variant} style={[{ padding: 6, minWidth: 36, minHeight: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: bg }, style]}>
+    <AppButton {...rest} variant={variant} style={[{ padding: Math.max(2, Math.round(sizing.gutter * 0.5)), minWidth: Math.round(sizing.gutter * 3), minHeight: Math.round(sizing.gutter * 3), alignItems: 'center', justifyContent: 'center', backgroundColor: bg }, style]}>
       <Ionicons name={name} size={size} color={iconColor} accessibilityLabel={accessibilityLabel} />
     </AppButton>
   );

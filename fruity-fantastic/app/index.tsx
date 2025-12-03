@@ -164,39 +164,57 @@ export default function Index() {
     return () => sub.remove();
   }, [currentPage, prefetchNextPage]);
 
+  // Stable navigation handler for movie cards to avoid inline function recreation
+  const navigateToMovie = useCallback((id?: number) => {
+    if (!id) return;
+    router.push({ pathname: '/movie/[id]', params: { id: String(id) } });
+  }, [router]);
+
+  // Memoized renderItem to avoid re-rendering the whole list when unrelated state changes
+  const renderMovieItem = useCallback(({ item }: { item: Movie }) => (
+    <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} />
+  ), [cardWidth, navigateToMovie]);
+
+  // Provide getItemLayout for constant-height rows (approximate) to help VirtualizedList
+  const itemHeight = Math.round(cardWidth * 1.4) + Math.round(sizing.gutter * 2) + Math.round(fonts.md * 2);
+  const getItemLayout = useCallback((data: any, index: number) => ({ length: itemHeight, offset: itemHeight * Math.floor(index / numColumns), index }), [itemHeight, numColumns]);
+
+  const isWeb = Platform.OS === 'web';
+
+  const filteredMovies = React.useMemo(() => movies.filter((m) => (m.vote_average ?? 0) >= minRating), [movies, minRating]);
+
   return (
-    <SafeAreaView style={[styles.page, { backgroundColor: colors.background, padding: sizing.gutter }]}> 
+    <SafeAreaView style={[styles.page, { backgroundColor: colors.background, padding: sizing.gutter }]}>
       <NavBar />
-      <Text style={[styles.title, { color: colors.text, fontSize: fonts.xxl }]}>Movie App</Text>
-      <View style={styles.searchRow}>
+      <Text style={[styles.title, { color: colors.text, fontSize: fonts.xxl, marginBottom: sizing.gutter }]}>Movie App</Text>
+      <View style={[styles.searchRow, { marginBottom: sizing.gutter }] }>
         <TextInput
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search for movies..."
-          style={[styles.searchInput, { padding: Math.round(sizing.gutter * 0.6), borderRadius: Math.round(sizing.radius / 1.2), backgroundColor: colors.card } ]}
+          style={[styles.searchInput, { padding: Math.round(sizing.gutter * 0.6), borderRadius: Math.round(sizing.radius / 1.2), backgroundColor: colors.card, marginRight: Math.round(sizing.gutter * 0.6) } ]}
         />
-        <AppButton variant="primary" onPress={handleSearch} style={{ paddingHorizontal: 14, paddingVertical: 8 }}>
+        <AppButton variant="primary" onPress={handleSearch} style={{ paddingHorizontal: Math.round(sizing.gutter * 1.1), paddingVertical: Math.round(sizing.gutter * 0.6) }}>
           Search
         </AppButton>
       </View>
-      {loading && <ActivityIndicator size="large" style={{ marginVertical: 12 }} />}
+      {loading && <ActivityIndicator size="large" style={{ marginVertical: sizing.gutter }} />}
       <FilterBar value={minRating} onChange={setMinRating} />
       <FlatList
         key={String(numColumns)}
-        data={movies.filter((m) => (m.vote_average ?? 0) >= minRating)}
+        data={filteredMovies}
         numColumns={numColumns}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <MovieCard movie={item} cardWidth={cardWidth} onPress={() => router.push({ pathname: '/movie/[id]', params: { id: String(item.id) } })} />
-        )}
+        renderItem={renderMovieItem}
+        getItemLayout={getItemLayout}
         columnWrapperStyle={numColumns > 1 ? { justifyContent: 'space-between' } : undefined}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
-        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 10 }} /> : null}
-        initialNumToRender={8}
-        windowSize={10}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: Math.round(sizing.gutter * 0.8) }} /> : null}
+        initialNumToRender={isWeb ? 12 : 6}
+        windowSize={isWeb ? 14 : 7}
         removeClippedSubviews={true}
         maxToRenderPerBatch={8}
       />
@@ -205,15 +223,15 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, padding: 12, backgroundColor: "#f0f0f0" },
-  title: { fontWeight: "bold", textAlign: "center", marginBottom: 12 },
-  searchRow: { flexDirection: "row", marginBottom: 12, alignItems: "center" },
-  searchInput: { flex: 1, borderWidth: 1, marginRight: 8, padding: 8, borderRadius: 6, backgroundColor: "#fff" },
-  pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 },
+  page: { flex: 1, backgroundColor: "#f0f0f0" },
+  title: { fontWeight: "bold", textAlign: "center" },
+  searchRow: { flexDirection: "row", alignItems: "center" },
+  searchInput: { flex: 1, borderWidth: 1, backgroundColor: "#fff" },
+  pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   pageText: { fontSize: 16 },
-  primaryButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, ...(Shadow.medium as any) },
+  primaryButton: { ...(Shadow.medium as any) },
   primaryButtonText: { color: 'white', fontWeight: '700' },
-  secondaryButton: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, backgroundColor: '#ddd', ...(Shadow.small as any) },
+  secondaryButton: { backgroundColor: '#ddd', ...(Shadow.small as any) },
   secondaryButtonText: { fontWeight: '700' },
 });
 

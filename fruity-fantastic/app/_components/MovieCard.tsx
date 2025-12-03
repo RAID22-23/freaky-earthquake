@@ -14,7 +14,8 @@ import { Shadow } from '../_utils/styles';
 interface MovieCardProps {
   movie: Movie;
   cardWidth?: number;
-  onPress?: () => void;
+  // New signature: onPress receives movie id so parent can reuse single handler
+  onPress?: (id?: number) => void;
 }
 
 const MovieCard: React.FC<MovieCardProps> = ({ movie, cardWidth, onPress }) => {
@@ -62,7 +63,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, cardWidth, onPress }) => {
     if (preventNavRef.current) return;
     // Prefetch the details for this movie to speed up navigation
     try { prefetchMovieDetails([movie.id]); } catch { }
-    onPress?.();
+    onPress?.(movie.id);
   };
 
   return (
@@ -71,20 +72,20 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, cardWidth, onPress }) => {
         <View style={[styles.accentStrip, { backgroundColor: colors.accent, width: Math.max(4, Math.round(sizing.gutter / 2)) }]} />
       <Image
         source={ posterUri ? { uri: posterUri } : require("../../assets/images/partial-react-logo.png") }
-        style={[styles.poster, { height: posterHeight, borderRadius: sizing.radius } as any]}
+        style={[styles.poster, { height: posterHeight, borderRadius: sizing.radius, marginBottom: Math.round(sizing.gutter * 0.8) } as any]}
         resizeMode="cover"
       />
       <View style={[styles.info, { padding: Math.round(sizing.gutter * 0.6) }] }>
-        <Text style={[styles.title, { color: colors.cardText, fontSize: fonts.md }]} numberOfLines={2}>{movie.title}</Text>
+        <Text style={[styles.title, { color: colors.cardText, fontSize: fonts.md, marginTop: Math.round(sizing.gutter * 0.5) }]} numberOfLines={2}>{movie.title}</Text>
         <Text style={[styles.date, { color: colors.muted, fontSize: fonts.sm }]}>{movie.release_date}</Text>
         <View style={[styles.actions, { marginTop: Math.round(sizing.gutter * 0.5) }]}>
           <Reanimated.View style={rFavStyle}>
-            <AppIconButton name={isFavourite(movie.id) ? 'heart' : 'heart-outline'} size={18} color={isFavourite(movie.id) ? colors.danger : colors.muted} onPress={() => handleActionPress(() => { handleFavourite(); favAnim.value = withSpring(1.3); setTimeout(() => { favAnim.value = withSpring(1);}, 100); })} style={[styles.iconButton, { width: 36, height: 36, padding: 0, borderRadius: 36 }]} accessibilityLabel={isFavourite(movie.id) ? 'Remove from favourites' : 'Add to favourites'} />
+            <AppIconButton name={isFavourite(movie.id) ? 'heart' : 'heart-outline'} size={Math.round(Math.max(14, Math.round(sizing.gutter * 0.9)))} color={isFavourite(movie.id) ? colors.danger : colors.muted} onPress={() => handleActionPress(() => { handleFavourite(); favAnim.value = withSpring(1.3); setTimeout(() => { favAnim.value = withSpring(1);}, 100); })} style={[styles.iconButton, { width: Math.round(sizing.gutter * 3), height: Math.round(sizing.gutter * 3), padding: 0, borderRadius: Math.round(sizing.gutter * 3) }]} accessibilityLabel={isFavourite(movie.id) ? 'Remove from favourites' : 'Add to favourites'} />
           </Reanimated.View>
           <AppButton
             onPress={() => handleActionPress(handleFavourite)}
             variant={isFavourite(movie.id) ? 'danger' : 'primary'}
-            style={[styles.actionButton, { paddingHorizontal: 10 }]}
+            style={[styles.actionButton, { paddingHorizontal: Math.round(sizing.gutter * 0.8), paddingVertical: Math.round(sizing.gutter * 0.5), borderRadius: sizing.radius, marginLeft: Math.round(sizing.gutter * 0.6) }]}
             >
             {isFavourite(movie.id) ? 'Remove' : 'Add'}
           </AppButton>
@@ -99,7 +100,6 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "column",
     backgroundColor: '#fff',
-    borderRadius: 8,
     overflow: "hidden",
   },
   // cardShadow: centralized in utils/styles (Shadow.small)
@@ -109,19 +109,31 @@ const styles = StyleSheet.create({
     aspectRatio: 2/3,
     height: undefined,
   },
-  accentStrip: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 6 },
+  accentStrip: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   info: {
     flex: 1,
-    padding: 8,
     justifyContent: "flex-start",
     alignItems: 'center',
   },
-  title: { fontWeight: "bold", textAlign: 'center', marginTop: 6 },
+  title: { fontWeight: "bold", textAlign: 'center' },
   date: { color: "#666", textAlign: 'center' },
-  actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  iconButton: { padding: 6, borderRadius: 6 },
-  actionButton: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, marginLeft: 8 },
+  actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  iconButton: {  },
+  actionButton: { },
   actionButtonText: { color: '#fff', fontWeight: '700' },
 });
 
-export default MovieCard;
+const areEqual = (prev: MovieCardProps, next: MovieCardProps) => {
+  // Compare shallow key movie props that affect rendering and interactive state.
+  const p = prev.movie;
+  const n = next.movie;
+  const sameMovieId = p?.id === n?.id;
+  const sameTitle = p?.title === n?.title;
+  const samePoster = p?.poster_path === n?.poster_path;
+  const sameVote = p?.vote_average === n?.vote_average && p?.vote_count === n?.vote_count;
+  const sameCardWidth = prev.cardWidth === next.cardWidth;
+  const sameOnPress = prev.onPress === next.onPress;
+  return sameMovieId && sameTitle && samePoster && sameVote && sameCardWidth && sameOnPress;
+};
+
+export default React.memo(MovieCard, areEqual);

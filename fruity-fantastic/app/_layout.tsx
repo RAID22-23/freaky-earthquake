@@ -8,7 +8,14 @@ export default function RootLayout() {
     <ThemeProvider>
       <ToastProvider>
         <MovieProvider>
-          <Stack />
+          <Stack
+            screenOptions={{ headerShown: true }}
+          >
+            {/* Define titles for common routes */}
+            <Stack.Screen name="index" options={{ title: 'Home' }} />
+            <Stack.Screen name="favourites" options={{ title: 'Favourites' }} />
+            <Stack.Screen name="movie/[id]" options={{ title: 'Movie' }} />
+          </Stack>
         </MovieProvider>
       </ToastProvider>
     </ThemeProvider>

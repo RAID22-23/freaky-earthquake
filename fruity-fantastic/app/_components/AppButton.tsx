@@ -51,6 +51,6 @@ const styles = StyleSheet.create({
   button: { alignItems: 'center', justifyContent: 'center' },
   text: { fontWeight: '700' },
   secondary: { borderWidth: 1, borderColor: '#e6e6e6' },
-  iosShadow: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
-  androidShadow: { elevation: 3 },
+  iosShadow: {},
+  androidShadow: {},
 });

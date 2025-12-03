@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Animated, Text, StyleSheet } from 'react-native';
-import { COLORS } from '../_utils/theme';
 import { Shadow } from '../_utils/styles';
+import { useTheme } from './ThemeProvider';
+import { moderateScale } from '../_utils/scale';
 
 export type ToastType = 'info' | 'success' | 'error';
 
@@ -13,6 +14,7 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { sizing, colors } = useTheme();
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -28,8 +30,8 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {toast && (
-        <Animated.View style={[styles.toast, { opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }]} pointerEvents="none">
-          <Text style={[styles.message, { color: toast.type === 'error' ? COLORS.danger : toast.type === 'success' ? COLORS.success : COLORS.text }]}>{toast.message}</Text>
+        <Animated.View style={[styles.toast, { opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [Math.round(-moderateScale(sizing.gutter * 1.6)), 0] }) }] }, { top: sizing.gutter, left: sizing.gutter, right: sizing.gutter, paddingHorizontal: Math.round(sizing.gutter * 1.6), paddingVertical: Math.round(sizing.gutter * 0.6), borderRadius: sizing.radius, backgroundColor: colors.card }]} pointerEvents="none">
+          <Text style={[styles.message, { color: toast.type === 'error' ? colors.danger : toast.type === 'success' ? colors.success : colors.text }]}>{toast.message}</Text>
         </Animated.View>
       )}
     </ToastContext.Provider>
@@ -45,15 +47,9 @@ export const useToast = () => {
 const styles = StyleSheet.create({
   toast: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.card,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    // Dynamic dimensions (padding/top/left/right/borderRadius) provided inline via useTheme
     ...(Shadow.medium as any),
   },
   message: { fontWeight: '600' },
