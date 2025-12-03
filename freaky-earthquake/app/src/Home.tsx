@@ -21,10 +21,18 @@ const Home: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [activeQuery, setActiveQuery] = useState("");
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadedPagesRef = useRef<Map<string, Set<number>>>(new Map());
+  const fetchingPagesRef = useRef<Map<string, Set<number>>>(new Map());
   const pendingPreserveRef = useRef<{ id: string | null; top: number } | null>(null);
 
   // Función asíncrona para obtener películas de la API
   const fetchMovies = async (query: string = "", page: number = 1, append: boolean = false) => {
+    const qKey = query ?? '';
+    const loadedSet = loadedPagesRef.current.get(qKey) ?? new Set<number>();
+    const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
+    if (loadedSet.has(page) || fetchingSet.has(page)) return; // already loaded or fetching
+    fetchingSet.add(page);
+    fetchingPagesRef.current.set(qKey, fetchingSet);
     if (append) {
       setLoadingMore(true);
     } else {
@@ -40,11 +48,16 @@ const Home: React.FC = () => {
       console.debug(`[Home] fetchMovies(page=${page}, append=${append}) -> results=${response.data.results.length}`);
       setMovies((prev) => (append ? [...prev, ...response.data.results] : response.data.results)); // Actualiza las películas
       setTotalPages(response.data.total_pages); // Actualiza el total de páginas
+      const setPages = loadedPagesRef.current.get(qKey) ?? new Set<number>();
+      setPages.add(page);
+      loadedPagesRef.current.set(qKey, setPages);
     } catch (error) {
       console.error("Error fetching movies:", error); // Manejo de errores
     } finally {
       setLoading(false); // Desactiva el indicador de carga
       setLoadingMore(false);
+      const s = fetchingPagesRef.current.get(qKey);
+      if (s) { s.delete(page); if (s.size === 0) fetchingPagesRef.current.delete(qKey); }
     }
   };
 

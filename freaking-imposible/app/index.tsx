@@ -30,10 +30,10 @@ export default function Index() {
 
   // Guards and caches
   const prefetchPagesMapRef = useRef<Map<string, Set<number>>>(new Map());
-  const fetchingQueryRef = useRef<string | null>(null);
   const loadedPagesRef = useRef<Map<string, Set<number>>>(new Map());
+  const fetchingPagesRef = useRef<Map<string, Set<number>>>(new Map());
   const lastVisibleIdsRef = useRef<number[]>([]);
-  const isFetchingRef = useRef(false);
+  const suppressViewabilityRef = useRef(false);
 
   // Prefetch movies for a page (idempotent, only caches)
   const prefetchNextPage = useCallback((page: number, q?: string) => {
@@ -53,14 +53,16 @@ export default function Index() {
   const fetchMovies = useCallback(async (query = '', page = 1) => {
     const qKey = query ?? '';
     const loadedSet = loadedPagesRef.current.get(qKey) ?? new Set<number>();
+    const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
     if (loadedSet.has(page)) {
       // already loaded this page for this query
       return;
     }
-    // allow fetch if currently fetching a different query
-    if (isFetchingRef.current && fetchingQueryRef.current === query) return;
-    fetchingQueryRef.current = query;
-    isFetchingRef.current = true;
+    if (fetchingSet.has(page)) return;
+    // mark page as fetching
+    fetchingSet.add(page);
+    fetchingPagesRef.current.set(qKey, fetchingSet);
+    if (__DEV__) console.debug('[fetchMovies] starting fetch', qKey, page, 'fetchingCount', fetchingSet.size);
     if (page > 1) setLoadingMore(true); else setLoading(true);
     try {
       const response = await apiFetchMovies(query, page);
@@ -91,8 +93,9 @@ export default function Index() {
       ]);
     } finally {
       if (page > 1) setLoadingMore(false); else setLoading(false);
-      fetchingQueryRef.current = null;
-      isFetchingRef.current = false;
+      const s = fetchingPagesRef.current.get(qKey);
+      if (s) { s.delete(page); if (s.size === 0) fetchingPagesRef.current.delete(qKey); }
+      if (__DEV__) console.debug('[fetchMovies] finished fetch', qKey, page);
     }
   }, [toast, prefetchNextPage]);
 
@@ -113,9 +116,11 @@ export default function Index() {
   };
 
   const handleEndReached = () => {
-    if (!isFetchingRef.current && currentPage < totalPages) {
-      setCurrentPage((p) => p + 1);
-    }
+    const qKey = activeQuery ?? '';
+    const next = currentPage + 1;
+    const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
+    if (fetchingSet.has(next)) return;
+    if (next <= totalPages) setCurrentPage((p) => p + 1);
   };
 
   const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
@@ -130,8 +135,10 @@ export default function Index() {
     const lastVisible = viewableItems[viewableItems.length - 1];
     if (!lastVisible) return;
     const lastIndex = lastVisible.index ?? 0;
-    if ((movies.length - lastIndex) <= (numColumns * 3)) {
-      prefetchNextPage(currentPage + 1);
+    if (!suppressViewabilityRef.current && (movies.length - lastIndex) <= (numColumns * 3)) {
+      const qKey = activeQuery ?? '';
+      const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
+      if (!fetchingSet.has(currentPage + 1)) prefetchNextPage(currentPage + 1);
     }
     // prefetch visible posters
     try {

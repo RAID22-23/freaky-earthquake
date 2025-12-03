@@ -62,20 +62,27 @@ export default function Index() {
   }, []);
 
   // Guards and caches
+  // NOTE: This file implements a robust, per-query page-fetch lifecycle. Key ideas:
+  // - loadedPagesRef holds pages already loaded per query (prevents duplicate network calls)
+  // - fetchingPagesRef holds pages currently in-flight per query (prevents duplicate/concurrent calls)
+  // - pendingPageResultsRef buffers page>1 results and commits them in order for smoother rendering
+  // - suppressViewabilityRef prevents prefetch triggers from programmatic scrolls
+  // This aims to avoid race conditions where out-of-order responses or programmatic scrolling cause re-fetch loops
   const prefetchPagesMapRef = useRef<Map<string, Set<number>>>(new Map());
-  const fetchingQueryRef = useRef<string | null>(null);
   const loadedPagesRef = useRef<Map<string, Set<number>>>(new Map());
+  // Track pages currently being fetched per query (to avoid duplicates & race conditions)
+  const fetchingPagesRef = useRef<Map<string, Set<number>>>(new Map());
   const lastVisibleIdsRef = useRef<number[]>([]);
   const lastVisibleIndexRef = useRef<number | null>(null);
   const isInteractingRef = useRef(false);
   const listRef = useRef<any>(null);
-  const isFetchingRef = useRef(false);
   const pendingPageResultsRef = useRef<Map<string, Map<number, Movie[]>>>(new Map());
   const pendingCommitTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   // track last append to suppress immediate scroll restore and logs
   const lastAppendRef = useRef<{ time: number; pages: number[] }>({ time: 0, pages: [] });
   const lastEndReachedRef = useRef<number>(0);
   const [isSearchPending, setIsSearchPending] = useState(false);
+  const suppressViewabilityRef = useRef(false);
 
   // Prefetch movies for a page (idempotent, only caches)
   const prefetchNextPage = useCallback((page: number, q?: string) => {
@@ -96,19 +103,18 @@ export default function Index() {
   const fetchMovies = useCallback(async (query = '', page = 1) => {
     const qKey = query ?? '';
     const loadedSet = loadedPagesRef.current.get(qKey) ?? new Set<number>();
-    if (loadedSet.has(page)) {
-      if (__DEV__) console.debug('[fetchMovies] already loaded', qKey, page, 'moviesLen', movies.length, 'pendingPages', Array.from((pendingPageResultsRef.current.get(qKey) ?? new Map()).keys()));
-      // already loaded this page for this query - ensure currentPage reflects that for active query
+    const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
+    // don't re-fetch a page that's already loaded / fetching
+    if (loadedSet.has(page) || fetchingSet.has(page)) {
+      if (__DEV__) console.debug('[fetchMovies] already loaded OR fetching', qKey, page, 'moviesLen', movies.length, 'pendingPages', Array.from((pendingPageResultsRef.current.get(qKey) ?? new Map()).keys()));
+      // ensure currentPage reflects that for active query
       if (qKey === activeQuery) setCurrentPage((p) => Math.max(p, page));
       return;
     }
-    // allow fetch if currently fetching a different query
-    if (isFetchingRef.current && fetchingQueryRef.current === query) {
-      if (__DEV__) console.debug('[fetchMovies] currently fetching', query, page);
-      return;
-    }
-    fetchingQueryRef.current = query;
-    isFetchingRef.current = true;
+    // mark page as fetching
+    fetchingSet.add(page);
+    fetchingPagesRef.current.set(qKey, fetchingSet);
+    if (__DEV__) console.debug('[fetchMovies] starting fetch', qKey, page, 'fetchingCount', fetchingSet.size);
     if (page > 1) setLoadingMore(true); else setLoading(true);
     try {
       const response = await apiFetchMovies(query, page);
@@ -162,9 +168,12 @@ export default function Index() {
           pendingCommitTimersRef.current.set(qKey, timer as any);
         }
       } else {
-        setMovies(response.results);
-        // make sure base page is recorded
-        if (qKey === activeQuery) setCurrentPage(1);
+        // Only update the visible list if this request matches the active query; otherwise cache it silently
+        if (qKey === activeQuery) {
+          setMovies(response.results);
+          // make sure base page is recorded
+          setCurrentPage(1);
+        }
       }
       setTotalPages(response.total_pages);
       // mark as loaded only for page 1 (replace) — for page > 1 we will mark once we append the results
@@ -186,11 +195,13 @@ export default function Index() {
       ]);
     } finally {
       if (page > 1) setLoadingMore(false); else setLoading(false);
-      fetchingQueryRef.current = null;
-      isFetchingRef.current = false;
+      const s = fetchingPagesRef.current.get(qKey);
+      if (s) { s.delete(page); if (s.size === 0) fetchingPagesRef.current.delete(qKey); }
+      if (__DEV__) console.debug('[fetchMovies] finished fetch', qKey, page);
     }
   }, [toast, prefetchNextPage, movies, activeQuery]);
 
+  // trigger fetch when active page changes - but avoid unnecessary duplicate fetches
   useEffect(() => {
     fetchMovies(activeQuery, currentPage);
   }, [activeQuery, currentPage, fetchMovies]);
@@ -215,7 +226,12 @@ export default function Index() {
       // clear append marker (this is a replace, not append)
       lastAppendRef.current = { time: 0, pages: [] };
       // reset loaded pages/write cache
-      loadedPagesRef.current.set(searchQuery ?? '', new Set<number>().add(1));
+      const s = new Set<number>(); s.add(1); loadedPagesRef.current.set(searchQuery ?? '', s);
+      // reset prefetch and pending structures for this query to avoid mixing results
+      prefetchPagesMapRef.current.set(searchQuery ?? '', new Set<number>());
+      pendingPageResultsRef.current.delete(searchQuery ?? '');
+      const oldTimer = pendingCommitTimersRef.current.get(searchQuery ?? '');
+      if (oldTimer) { clearTimeout(oldTimer); pendingCommitTimersRef.current.delete(searchQuery ?? ''); }
       // clear any pending page results or timers for this query
       pendingPageResultsRef.current.delete(searchQuery ?? '');
       const t = pendingCommitTimersRef.current.get(searchQuery ?? '');
@@ -230,12 +246,15 @@ export default function Index() {
   };
 
   const handleEndReached = useCallback(() => {
-    if (isFetchingRef.current) return;
+    // Do not request if it is already being fetched
+    const qKey = activeQuery ?? '';
+    const nextPage = currentPage + 1;
+    const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
+    if (fetchingSet.has(nextPage)) return;
     // throttle repeated calls
     const now = Date.now();
     if (now - (lastEndReachedRef.current ?? 0) < 600) return;
     lastEndReachedRef.current = now;
-    const nextPage = currentPage + 1;
     if (nextPage > totalPages) return;
     // directly trigger fetch of next page and then update currentPage
     if (__DEV__) console.debug('[handleEndReached] requesting page', nextPage, 'current', currentPage, 'total', totalPages, 'moviesLen', movies.length, 'filteredLen', filteredMovies.length);
@@ -266,8 +285,12 @@ export default function Index() {
     const lastIndex = lastVisible.index ?? 0;
     if (__DEV__) console.debug('[onViewableItemsChanged] topId', ids[0], 'topIndex', topIndex, 'lastIndex', lastIndex, 'visibleCount', viewableItems.length);
     // Use filtered movies length (actual list being rendered) when calculating proximity
-    if ((filteredMoviesRef.current.length - lastIndex) <= (numColumns * 3)) {
-      prefetchNextPage(currentPage + 1);
+    if (!suppressViewabilityRef.current && (filteredMoviesRef.current.length - lastIndex) <= (numColumns * 3)) {
+      // ensure we don't start duplicate fetches
+      const qKey = activeQuery ?? '';
+      const next = currentPage + 1;
+      const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
+      if (!fetchingSet.has(next) && next <= totalPages) prefetchNextPage(next);
     }
     // prefetch visible posters
     try {
@@ -277,7 +300,7 @@ export default function Index() {
         if (m.poster_path) Image.prefetch(`https://image.tmdb.org/t/p/w500${m.poster_path}`);
       });
     } catch { }
-  }, [prefetchNextPage, currentPage, numColumns]);
+  }, [prefetchNextPage, currentPage, numColumns, totalPages, activeQuery]);
 
   // When window or app regains focus, prefetch visible details & next page
   useEffect(() => {
@@ -296,7 +319,7 @@ export default function Index() {
     const sub = AppState.addEventListener('change', (next) => {
       if (next === 'active') doPrefetchOnFocus();
     });
-    return () => sub.remove();
+      return () => sub.remove();
   }, [currentPage, prefetchNextPage]);
 
   // Stable navigation handler for movie cards to avoid inline function recreation
@@ -401,8 +424,8 @@ export default function Index() {
       const newIndex = filteredMovies.findIndex((m) => m.id === prevTopId);
       if (__DEV__) console.debug('[restore] newIndex', newIndex);
       if (newIndex >= 0 && newIndex !== prevTopIndex) {
-        // Scroll to the new index so the same item stays visible
-        try { listRef.current?.scrollToIndex({ index: newIndex, animated: false }); } catch { }
+        // Scroll to the new index so the same item stays visible. Suppress viewability triggers
+        try { suppressViewabilityRef.current = true; listRef.current?.scrollToIndex({ index: newIndex, animated: false }); setTimeout(() => { suppressViewabilityRef.current = false; }, 300); } catch { suppressViewabilityRef.current = false; }
       } else if (newIndex < 0 && prevTopIndex != null) {
         // If previous top ID no longer exists, keep the same index (clamped)
         const newIdx = Math.min(prevTopIndex, Math.max(0, filteredMovies.length - 1));
@@ -410,7 +433,7 @@ export default function Index() {
       }
     } else if (prevTopIndex != null) {
       const idx = Math.min(prevTopIndex, Math.max(0, filteredMovies.length - 1));
-      try { listRef.current?.scrollToIndex({ index: idx, animated: false }); } catch { }
+      try { suppressViewabilityRef.current = true; listRef.current?.scrollToIndex({ index: idx, animated: false }); setTimeout(() => { suppressViewabilityRef.current = false; }, 300); } catch { suppressViewabilityRef.current = false; }
     }
   }, [filteredMovies]);
 
@@ -419,7 +442,9 @@ export default function Index() {
     const id = setInterval(() => {
       if (!listRef.current) return;
       if (isInteractingRef.current) return;
-      if (isFetchingRef.current) return;
+      const qKey = activeQuery ?? '';
+      const fetchingSet = fetchingPagesRef.current.get(qKey) ?? new Set<number>();
+      if (fetchingSet.size > 0) return;
       if (currentPage >= totalPages) return;
       const lastIndex = lastVisibleIndexRef.current ?? 0;
       if ((filteredMovies.length - lastIndex) <= (numColumns * 3)) {
