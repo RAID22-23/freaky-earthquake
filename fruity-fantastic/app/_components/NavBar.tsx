@@ -1,13 +1,15 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet, Platform, useWindowDimensions } from "react-native";
 import AppButton from './AppButton';
-import { Shadow } from '../_utils/styles';
+// import { Shadow } from '../_utils/styles';
 import { Link, useSegments } from "expo-router";
 import { useTheme } from "../_context/ThemeProvider";
 import AppIconButton from './AppIconButton';
 
 const NavBar: React.FC = () => {
-  const { colors, sizing, fonts, mode, toggleTheme } = useTheme();
+  const { colors, sizing, fonts, mode, toggleTheme, shadows, compact } = useTheme();
+  const { width } = useWindowDimensions();
+  const showLabels = !compact && width >= 400;
   const segments = useSegments();
   const routeName = (() => {
     // segments: [] for '/', ['movie', '123'] for movie, ['favourites'] for favourites
@@ -18,28 +20,39 @@ const NavBar: React.FC = () => {
     return s.charAt(0).toUpperCase() + s.slice(1);
   })();
   return (
-  <View style={[styles.nav, { backgroundColor: colors.card, paddingVertical: sizing.gutter / 2, paddingHorizontal: sizing.gutter, ...(Shadow.medium as any) }]}> 
-    <Link href="/" asChild>
-      <AppButton variant="ghost" style={styles.row}>
-        <AppIconButton name={Platform.OS === 'ios' ? 'home-outline' : 'home'} size={20} color={colors.primary} variant="ghost" />
-        <Text style={[styles.link, { color: colors.text, marginLeft: Math.round(sizing.gutter * 0.6), fontSize: fonts.md }]}>{'Home'}</Text>
-      </AppButton>
-    </Link>
-    <Link href="/favourites" asChild>
-      <AppButton variant="ghost" style={styles.row}>
-        <AppIconButton name={Platform.OS === 'ios' ? 'heart-outline' : 'heart'} size={20} color={colors.primary} variant="ghost" />
-        <Text style={[styles.link, { color: colors.primary, marginLeft: Math.round(sizing.gutter * 0.6), fontSize: fonts.md }]}>{'Favourites'}</Text>
-      </AppButton>
-    </Link>
-    <Text style={[styles.centerTitle, { color: colors.text, fontSize: fonts.md }]}>{routeName}</Text>
-    <AppIconButton name={mode === 'dark' ? 'sunny' : 'moon'} size={20} onPress={toggleTheme} variant="ghost" style={{ marginLeft: Math.round(sizing.gutter * 0.6) }} accessibilityLabel="Toggle theme" />
+  <View style={[styles.nav, { backgroundColor: colors.card, paddingVertical: sizing.gutter / 2, paddingHorizontal: sizing.gutter, ...(shadows.medium as any), borderBottomWidth: 1, borderBottomColor: mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.06)' }]}> 
+    <View style={styles.leftRow}>
+      <Link href="/" asChild>
+        <AppButton variant="ghost" style={styles.row}>
+          <AppIconButton name={Platform.OS === 'ios' ? 'home-outline' : 'home'} size={20} color={colors.primary} variant="ghost" />
+        {showLabels && <Text style={[styles.link, { color: colors.text, marginLeft: Math.round(sizing.gutter * 0.6), fontSize: fonts.md }]}>{'Home'}</Text>}
+        </AppButton>
+      </Link>
+      <Link href="/favourites" asChild>
+        <AppButton variant="ghost" style={[styles.row, { marginLeft: Math.round(sizing.gutter * 0.8) }]}> 
+          <AppIconButton name={Platform.OS === 'ios' ? 'heart-outline' : 'heart'} size={20} color={colors.primary} variant="ghost" />
+        {showLabels && <Text style={[styles.link, { color: colors.primary, marginLeft: Math.round(sizing.gutter * 0.6), fontSize: fonts.md }]}>{'Favourites'}</Text>}
+        </AppButton>
+      </Link>
+    </View>
+    {!compact && (
+      <View style={styles.centerRow} pointerEvents="none">
+        <Text style={[styles.centerTitle, { color: colors.text, fontSize: fonts.md }]}>{routeName}</Text>
+      </View>
+    )}
+    <View style={styles.rightRow}>
+      <AppIconButton name={mode === 'dark' ? 'sunny' : 'moon'} size={20} onPress={toggleTheme} variant="ghost" style={{ marginLeft: Math.round(sizing.gutter * 0.6) }} accessibilityLabel="Toggle theme" />
+    </View>
   </View>
   );
 };
 
 const styles = StyleSheet.create({
-  nav: { flexDirection: "row", justifyContent: "space-around" },
+  nav: { flexDirection: "row", alignItems: 'center', justifyContent: 'space-between', minHeight: 56 },
   row: { flexDirection: "row", alignItems: "center", },
+  leftRow: { flexDirection: 'row', alignItems: 'center' },
+  centerRow: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  rightRow: { flexDirection: 'row', alignItems: 'center' },
   link: { fontSize: 16, fontWeight: "bold" },
   centerTitle: { fontWeight: '700', textAlign: 'center' }
 });

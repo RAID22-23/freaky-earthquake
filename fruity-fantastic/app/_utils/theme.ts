@@ -1,8 +1,8 @@
 export const COLORS = {
   background: "#F6F8FB",
   card: "#FFFFFF",
-  primary: "#2B6CB0",
-  accent: "#F6AD55",
+  primary: "#2563EB",
+  accent: "#F97316",
   text: "#1F2937",
   muted: "#6B7280",
   success: "#16A34A",
@@ -26,16 +26,16 @@ export const COLORS_DARK = {
 
 export const SIZING = {
   gutter: 12,
-  radius: 10,
+  radius: 8,
 };
 
 export const FONT_SIZES = {
-  xs: 12,
-  sm: 14,
-  md: 16,
-  lg: 20,
-  xl: 24,
-  xxl: 28,
+  xs: 11,
+  sm: 13,
+  md: 15,
+  lg: 18,
+  xl: 22,
+  xxl: 26,
 };
 
 export default { COLORS, COLORS_DARK, SIZING, FONT_SIZES };

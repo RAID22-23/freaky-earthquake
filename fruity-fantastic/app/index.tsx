@@ -72,6 +72,9 @@ export default function Index() {
   const isFetchingRef = useRef(false);
   const pendingPageResultsRef = useRef<Map<string, Map<number, Movie[]>>>(new Map());
   const pendingCommitTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  // track last append to suppress immediate scroll restore and logs
+  const lastAppendRef = useRef<{ time: number; pages: number[] }>({ time: 0, pages: [] });
+  const lastEndReachedRef = useRef<number>(0);
   const [isSearchPending, setIsSearchPending] = useState(false);
 
   // Prefetch movies for a page (idempotent, only caches)
@@ -123,29 +126,39 @@ export default function Index() {
             const loadedSet = loadedPagesRef.current.get(qKey) ?? new Set<number>();
             // Sort pages to append in order
             const pagesNums = Array.from(pagesMap.keys()).sort((a, b) => a - b);
+            let appendedPages: number[] = [];
             let append: Movie[] = [];
+            // Append results using functional setMovies so we always compute existing items from the latest state
             pagesNums.forEach((p) => {
               if (!loadedSet.has(p)) {
                 const results = pagesMap.get(p) ?? [];
-                const existing = new Set((movies as Movie[]).map((m) => m.id));
-                const filtered = results.filter((r) => !existing.has(r.id));
-                append = [...append, ...filtered];
-                loadedSet.add(p);
+                append = [...append, ...results];
+                appendedPages.push(p);
               }
             });
             if (append.length > 0 && qKey === activeQuery) {
-              if (__DEV__) console.debug('[commit] appending pages', pagesNums, 'append', append.length, 'moviesBefore', movies.length);
-              setMovies((prev) => [...prev, ...append]);
-              if (__DEV__) console.debug('[commit] appended, newLen', (movies as Movie[]).length + append.length);
-              // update current page to the last page we appended so that nextPage logic continues
-              const lastAppended = pagesNums[pagesNums.length - 1] ?? page;
-              setCurrentPage((p) => Math.max(p, lastAppended));
+              if (__DEV__) console.debug('[commit] appending pages', pagesNums, 'append', append.length);
+              // record recent append so UI doesn't try to restore scroll immediately and cause a jump
+              lastAppendRef.current = { time: Date.now(), pages: appendedPages };
+              setMovies((prev) => {
+                const existing = new Set(prev.map((m) => m.id));
+                const filtered = append.filter((r) => !existing.has(r.id));
+                return [...prev, ...filtered];
+              });
+              if (appendedPages.length) {
+                const lastAppended = appendedPages[appendedPages.length - 1];
+                setCurrentPage((p) => Math.max(p, lastAppended));
+                // mark loaded only for pages we've appended
+                appendedPages.forEach((p) => loadedSet.add(p));
+              }
+              // clear append marker after a small grace period to allow the restore effect to skip
+              setTimeout(() => { lastAppendRef.current = { time: 0, pages: [] }; }, 1200);
             }
             // mark loaded and clear buffer
             loadedPagesRef.current.set(qKey, loadedSet);
             pendingPageResultsRef.current.delete(qKey);
             pendingCommitTimersRef.current.delete(qKey);
-          }, 60);
+          }, 300); // batch more pages to avoid repeated re-renders and reduce jank
           pendingCommitTimersRef.current.set(qKey, timer as any);
         }
       } else {
@@ -199,6 +212,8 @@ export default function Index() {
       setActiveQuery(searchQuery);
       setCurrentPage(1);
       setTotalPages(response.total_pages);
+      // clear append marker (this is a replace, not append)
+      lastAppendRef.current = { time: 0, pages: [] };
       // reset loaded pages/write cache
       loadedPagesRef.current.set(searchQuery ?? '', new Set<number>().add(1));
       // clear any pending page results or timers for this query
@@ -216,6 +231,10 @@ export default function Index() {
 
   const handleEndReached = useCallback(() => {
     if (isFetchingRef.current) return;
+    // throttle repeated calls
+    const now = Date.now();
+    if (now - (lastEndReachedRef.current ?? 0) < 600) return;
+    lastEndReachedRef.current = now;
     const nextPage = currentPage + 1;
     if (nextPage > totalPages) return;
     // directly trigger fetch of next page and then update currentPage
@@ -223,7 +242,8 @@ export default function Index() {
     fetchMovies(activeQuery, nextPage).then(() => { setCurrentPage((p) => Math.max(p, nextPage)); }).catch(() => { /* ignore */ });
   }, [currentPage, totalPages, fetchMovies, activeQuery]);
 
-  const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
+  const viewabilityConfig = { minimumViewTime: 300, itemVisiblePercentThreshold: 70, waitForInteraction: false };
+  const lastViewableRef = useRef<number>(0);
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     if (!viewableItems || viewableItems.length === 0) return;
     const ids = viewableItems.map((v: any) => v.item?.id).filter(Boolean);
@@ -231,13 +251,20 @@ export default function Index() {
     lastVisibleIdsRef.current = ids;
     // Save the smallest index (topmost visible item) so we can restore after data updates
     const indices = viewableItems.map((v: any) => v.index).filter((i: any) => typeof i === 'number');
-    lastVisibleIndexRef.current = indices.length ? Math.min(...indices) : null;
+    const topIndex = Math.min(...indices);
+    const now = Date.now();
+    // Only update lastVisibleIndexRef if a short time has passed to avoid jitter
+    if (now - lastViewableRef.current > 250) {
+      lastViewableRef.current = now;
+      lastVisibleIndexRef.current = indices.length ? Math.min(...indices) : null;
+    }
     // prefetch details for visible items
     apiPrefetchMovieDetails(ids).catch(() => {});
     // prefetch next page if near the end
     const lastVisible = viewableItems[viewableItems.length - 1];
     if (!lastVisible) return;
     const lastIndex = lastVisible.index ?? 0;
+    if (__DEV__) console.debug('[onViewableItemsChanged] topId', ids[0], 'topIndex', topIndex, 'lastIndex', lastIndex, 'visibleCount', viewableItems.length);
     // Use filtered movies length (actual list being rendered) when calculating proximity
     if ((filteredMoviesRef.current.length - lastIndex) <= (numColumns * 3)) {
       prefetchNextPage(currentPage + 1);
@@ -279,23 +306,63 @@ export default function Index() {
   }, [router]);
 
   // Memoized renderItem to avoid re-rendering the whole list when unrelated state changes
-  const renderMovieItem = useCallback(({ item }: { item: Movie }) => {
+  const renderMovieItem = useCallback(({ item, index, onMeasure }: { item: Movie; index?: number; onMeasure?: (h: number) => void }) => {
     if (__DEV__) {
+      console.debug('[renderMovieItem] rendering', item.id, item.title);
       incrementRenderCount(`Movie-${item.id}`);
       incrementRenderCount('MovieAll');
     }
     const isFav = favSetRef.current.has(item.id);
     const toggle = getToggleHandler(item.id);
-    return <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} isFavourite={isFav} onToggleFavourite={toggle} />;
+    return <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} isFavourite={isFav} onToggleFavourite={toggle} onMeasure={onMeasure} />;
   }, [cardWidth, navigateToMovie, getToggleHandler]);
+  const [measuredItemHeight, setMeasuredItemHeight] = useState<number | null>(null);
+  const measuredForWidthRef = useRef<number | null>(null);
+
+  
+
+  // Avoid creating an inline renderItem in the FlatList which causes rerenders; memoize it.
+  const renderListItem = useCallback((props: any) => {
+    const { item } = props as any;
+    if (item && item.__skeleton) {
+      return <MovieCard loading cardWidth={cardWidth} />;
+    }
+    const index = (props.index as number) ?? 0;
+    const shouldMeasure = index === 0 && (!measuredItemHeight || measuredForWidthRef.current !== cardWidth);
+    const onMeasure = shouldMeasure ? ((h: number) => {
+      const minAccept = Math.max(80, Math.round(computedItemHeight * 0.5));
+      if (h && h >= minAccept && (!measuredItemHeight || measuredForWidthRef.current !== cardWidth)) {
+        measuredForWidthRef.current = cardWidth;
+        setMeasuredItemHeight(h);
+        if (__DEV__) console.debug('[measure] measured item height', h, 'for width', cardWidth);
+      } else if (__DEV__) {
+        console.debug('[measure] ignored measurement', h, 'minAccept', minAccept, 'width', cardWidth);
+      }
+    }) : undefined;
+    return renderMovieItem({ item, index, onMeasure });
+  }, [renderMovieItem, cardWidth, measuredItemHeight, navigateToMovie]);
 
   // Compute vertical margins and provide getItemLayout for constant-height rows to help VirtualizedList and avoid jumps.
   const cardVerticalMargin = Math.round(sizing.gutter * 0.6); // matches MovieCard marginVertical
-  const itemHeight = Math.round(cardWidth * 1.4) + (cardVerticalMargin * 2) + Math.round(fonts.md * 2);
+  const posterHeight = Math.round(cardWidth * 1.4);
+  const infoPadding = Math.round(sizing.gutter * 0.75) * 2;
+  const titleHeight = Math.round(fonts.md);
+  const dateHeight = Math.round(fonts.sm);
+  const actionMin = Math.round(Math.max(36, sizing.gutter * 3));
+  const computedItemHeight = posterHeight + (cardVerticalMargin * 2) + infoPadding + titleHeight + dateHeight + actionMin + Math.round(sizing.gutter * 0.5);
+  const itemHeight = measuredItemHeight ?? computedItemHeight;
   const getItemLayout = useCallback((data: any, index: number) => {
     const row = Math.floor(index / numColumns);
     return { length: itemHeight, offset: itemHeight * row, index };
   }, [itemHeight, numColumns]);
+
+  // Reset measurement if width/columns change so we re-measure with the new width
+  useEffect(() => {
+    if (measuredForWidthRef.current !== cardWidth) {
+      measuredForWidthRef.current = null;
+      setMeasuredItemHeight(null);
+    }
+  }, [cardWidth, numColumns]);
 
   const isWeb = Platform.OS === 'web';
   const listOpacity = React.useRef(new Animated.Value(1)).current;
@@ -309,6 +376,11 @@ export default function Index() {
   // keep a stable ref for filtered list for callback access without recreating handlers
   const filteredMoviesRef = useRef(filteredMovies);
   useEffect(() => { filteredMoviesRef.current = filteredMovies; }, [filteredMovies]);
+
+  // Debug changes in movies/filteredMovies length
+  useEffect(() => {
+    if (__DEV__) console.debug('[moviesState] moviesLen', movies.length, 'filteredLen', filteredMovies.length);
+  }, [movies.length, filteredMovies.length]);
   // (we rely on a stable but updated callback for viewability, so refs for currentPage/numColumns are not needed)
 
   // Restore scroll position if the list updates and we had a stable visible item before change
@@ -316,10 +388,18 @@ export default function Index() {
     if (!listRef.current) return;
     // If the user is interacting (scrolling) do not adjust scroll position
     if (isInteractingRef.current) return;
+    // If we recently appended items to the end, skip restoring scroll to avoid jank
+    const lastAppend = lastAppendRef.current;
+    if (lastAppend.time && Date.now() - lastAppend.time < 1000) {
+      if (__DEV__) console.debug('[restore] skipping restore because recent append', lastAppend.pages);
+      return;
+    }
     const prevTopId = lastVisibleIdsRef.current?.[0];
     const prevTopIndex = lastVisibleIndexRef.current;
+    if (__DEV__) console.debug('[restore] prevTopId', prevTopId, 'prevTopIndex', prevTopIndex, 'filteredLen', filteredMovies.length, 'moviesLen', movies.length);
     if (prevTopId != null) {
       const newIndex = filteredMovies.findIndex((m) => m.id === prevTopId);
+      if (__DEV__) console.debug('[restore] newIndex', newIndex);
       if (newIndex >= 0 && newIndex !== prevTopIndex) {
         // Scroll to the new index so the same item stays visible
         try { listRef.current?.scrollToIndex({ index: newIndex, animated: false }); } catch { }
@@ -346,7 +426,7 @@ export default function Index() {
         if (__DEV__) console.debug('[watchdog] near end, requesting next page', currentPage + 1);
         handleEndReached();
       }
-    }, 1500);
+    }, 2500);
     return () => clearInterval(id);
   }, [currentPage, totalPages, filteredMovies.length, numColumns, handleEndReached]);
 
@@ -376,13 +456,7 @@ export default function Index() {
         data={isSearchPending ? (Array.from({ length: isWeb ? 12 : 8 }).map((_, i) => ({ __skeleton: true, id: -i })) as any[]) : (filteredMovies as any[])}
         numColumns={numColumns}
         keyExtractor={(item, idx) => item && item.__skeleton ? `skeleton-${idx}` : item.id.toString()}
-        renderItem={(props) => {
-          const { item } = props as any;
-          if (item && item.__skeleton) {
-            return <MovieCard loading cardWidth={cardWidth} />;
-          }
-          return renderMovieItem(props as any);
-        }}
+        renderItem={renderListItem}
         getItemLayout={getItemLayout}
         columnWrapperStyle={numColumns > 1 ? { justifyContent: 'space-between', paddingHorizontal: sizing.gutter } : { paddingHorizontal: sizing.gutter }}
         contentContainerStyle={{ paddingVertical: Math.round(sizing.gutter * 0.6), paddingHorizontal: sizing.gutter }}
@@ -394,14 +468,15 @@ export default function Index() {
         onScrollEndDrag={() => { isInteractingRef.current = false; }}
         onMomentumScrollBegin={() => { isInteractingRef.current = true; }}
         onMomentumScrollEnd={() => { isInteractingRef.current = false; }}
-        extraData={favourites.length}
+        extraData={favourites}
         ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: Math.round(sizing.gutter * 0.8) }} /> : null}
-        initialNumToRender={isWeb ? 12 : 8}
-        windowSize={isWeb ? 14 : 9}
-        removeClippedSubviews={Platform.OS !== 'web'}
+        initialNumToRender={isWeb ? 12 : 6}
+        windowSize={isWeb ? 10 : 8}
+        // disable removeClippedSubviews due to reanimated transforms causing visual clipping on some devices
+        removeClippedSubviews={false}
         maintainVisibleContentPosition={Platform.OS !== 'web' ? { minIndexForVisible: 0, autoscrollToTopThreshold: 5 } : undefined}
-        updateCellsBatchingPeriod={50}
-        maxToRenderPerBatch={8}
+        updateCellsBatchingPeriod={isWeb ? 150 : 120}
+        maxToRenderPerBatch={isWeb ? 8 : 6}
       />
       </Animated.View>
       {__DEV__ && (

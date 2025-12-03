@@ -25,7 +25,7 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onClick }) => {
 
   // Renderiza la tarjeta de película
   return (
-    <div className="movie-card" onClick={onClick}>
+    <div className="movie-card" onClick={onClick} data-movie-id={movie.id}>
       {/* Imagen del póster */}
       <img
         src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}

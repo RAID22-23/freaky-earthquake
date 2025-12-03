@@ -91,8 +91,8 @@ export default function MovieDetails() {
       </ScrollView>
       <Text style={[styles.overview, { fontSize: fonts.sm, color: colors.modalText, marginVertical: sizing.gutter }]}>{movie.overview || 'No overview available.'}</Text>
       <Text style={[styles.stats, { fontSize: fonts.sm, color: colors.modalText }]}>Rating: {movie.vote_average}/10 — Votes: {movie.vote_count}</Text>
-      <View style={{ marginTop: Math.round(sizing.gutter * 0.6), flexDirection: 'row', gap: Math.round(sizing.gutter * 0.3) }}>
-        <AppButton variant={isFavourite(movie.id) ? 'danger' : 'primary'} onPress={toggleFav} style={{ backgroundColor: isFavourite(movie.id) ? colors.danger : colors.primary }}>{isFavourite(movie.id) ? 'Remove from Favs' : 'Add to Favs'}</AppButton>
+      <View style={{ marginTop: Math.round(sizing.gutter * 0.6), flexDirection: 'row' }}>
+        <AppButton variant={isFavourite(movie.id) ? 'danger' : 'primary'} onPress={toggleFav} style={{ backgroundColor: isFavourite(movie.id) ? colors.danger : colors.primary, marginRight: Math.round(sizing.gutter * 0.3) }}>{isFavourite(movie.id) ? 'Remove from Favs' : 'Add to Favs'}</AppButton>
         <AppButton variant="secondary" onPress={() => router.back()} style={{ backgroundColor: colors.card, paddingHorizontal: Math.round(sizing.gutter * 1.2) }}>Back</AppButton>
       </View>
     </ScrollView>

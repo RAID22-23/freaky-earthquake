@@ -8,7 +8,7 @@ import { getNumColumns, calcCardWidth } from './_utils/layout';
 import MovieCard from "./_components/MovieCard";
 
 export default function Favourites() {
-  const { favourites } = useMovieContext();
+  const { favourites, removeFavourite } = useMovieContext();
   const router = useRouter();
 
   const { colors, sizing, fonts } = useTheme();
@@ -22,12 +22,16 @@ export default function Favourites() {
   }, [router]);
 
   const renderMovieItem = useCallback(({ item }: { item: any }) => (
-    <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} />
+    <MovieCard movie={item} cardWidth={cardWidth} onPress={navigateToMovie} isFavourite={true} onToggleFavourite={() => removeFavourite(item.id)} />
   ), [cardWidth, navigateToMovie]);
 
   const isWeb = Platform.OS === 'web';
-  const itemHeight = Math.round(cardWidth * 1.4) + Math.round(sizing.gutter * 2) + Math.round(fonts.md * 2);
-  const getItemLayout = useCallback((data: any, index: number) => ({ length: itemHeight, offset: itemHeight * Math.floor(index / numColumns), index }), [itemHeight, numColumns]);
+  const cardVerticalMargin = Math.round(sizing.gutter * 0.6);
+  const itemHeight = Math.round(cardWidth * 1.4) + (cardVerticalMargin * 2) + Math.round(fonts.md * 2);
+  const getItemLayout = useCallback((data: any, index: number) => {
+    const row = Math.floor(index / numColumns);
+    return { length: itemHeight, offset: itemHeight * row, index };
+  }, [itemHeight, numColumns]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background, padding: sizing.gutter }]}> 
@@ -43,6 +47,7 @@ export default function Favourites() {
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? { justifyContent: 'space-between' } : undefined}
           renderItem={renderMovieItem}
+          extraData={favourites.length}
           getItemLayout={getItemLayout}
           initialNumToRender={isWeb ? 12 : 6}
           windowSize={isWeb ? 14 : 7}

@@ -32,6 +32,12 @@
   margin-top: 2rem;
 }
 
+/* Sentinel element used by IntersectionObserver for infinite scroll */
+.list-sentinel {
+  height: 1px;
+  width: 100%;
+}
+
 /* Estilos para cada tarjeta de película */
 .movie-card {
   background: rgba(255, 255, 255, 0.05);

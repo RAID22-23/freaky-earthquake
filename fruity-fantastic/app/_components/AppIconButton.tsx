@@ -13,12 +13,14 @@ interface Props extends PressableProps {
   accessibilityLabel?: string;
 }
 
-export default function AppIconButton({ name, size = 18, color, style, variant = 'ghost', accessibilityLabel, ...rest }: Props) {
-  const { colors, sizing } = useTheme();
+export default function AppIconButton({ name, size: sizeProp, color, style, variant = 'ghost', accessibilityLabel, ...rest }: Props) {
+  const { colors, sizing, fonts } = useTheme();
+  const size = sizeProp ?? Math.max(16, fonts.md - 2);
   const iconColor = color ?? (variant === 'primary' ? colors.card : variant === 'danger' ? colors.card : variant === 'success' ? colors.card : colors.text);
   const bg = variant === 'primary' ? colors.primary : variant === 'danger' ? colors.danger : variant === 'success' ? colors.success : 'transparent';
+  const minDim = Math.round(Math.max(36, sizing.gutter * 3));
   return (
-    <AppButton {...rest} variant={variant} style={[{ padding: Math.max(2, Math.round(sizing.gutter * 0.5)), minWidth: Math.round(sizing.gutter * 3), minHeight: Math.round(sizing.gutter * 3), alignItems: 'center', justifyContent: 'center', backgroundColor: bg }, style]}>
+    <AppButton {...rest} variant={variant} style={[{ padding: Math.max(2, Math.round(sizing.gutter * 0.35)), minWidth: minDim, minHeight: minDim, alignItems: 'center', justifyContent: 'center', borderRadius: Math.round(minDim / 2), backgroundColor: variant === 'ghost' ? 'transparent' : bg }, style]}>
       <Ionicons name={name} size={size} color={iconColor} accessibilityLabel={accessibilityLabel} />
     </AppButton>
   );
