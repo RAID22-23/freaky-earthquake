@@ -35,7 +35,7 @@
 /* Estilos para cada tarjeta de película */
 .movie-card {
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+  /* backdrop-filter: blur(10px); */
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 15px;
   padding: 1.5rem;
@@ -185,7 +185,7 @@ nav {
   margin-bottom: 2rem;
   text-align: center;
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+  /* backdrop-filter: blur(10px); */
   border-radius: 25px;
   padding: 1rem;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
@@ -243,7 +243,7 @@ input {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 25px;
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+  /* backdrop-filter: blur(10px); */
   color: #fff;
   font-size: 1em;
   transition: all 0.3s ease;
@@ -454,7 +454,7 @@ form button:hover {
 /* Estilos para el contenido del modal */
 .modal-content {
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  /* backdrop-filter: blur(20px); */
   border-radius: 20px;
   padding: 2rem;
   max-width: 800px;
