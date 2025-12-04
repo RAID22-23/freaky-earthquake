@@ -55,7 +55,6 @@ Comprueba el `package.json` del proyecto para ver los scripts exactos disponible
   - `_hooks/` : Hooks personalizados (ej. `useInfiniteMovies.ts`).
   - `_utils/` : Utilidades comunes: `api.ts`, `cache.ts`, `config.ts`, `styles.ts`, `theme.ts`.
 - `assets/` : Imágenes y recursos estáticos.
-- `android/` : Proyecto Android nativo generado por Expo/React Native.
 
 **Descripción breve de archivos clave**
 - `app/_hooks/useInfiniteMovies.ts` : Hook personalizado para paginación infinita y consulta de listas de películas.
@@ -84,9 +83,6 @@ Comprueba el `package.json` del proyecto para ver los scripts exactos disponible
 - Si necesitas ayuda con la configuración del entorno, scripts o añadir CI/CD, abre una issue o pregunta directamente en el repositorio.
 
 ---
-Si quieres, puedo:
-- Actualizar el `README` con instrucciones exactas de `package.json` (puedo leerlo y añadir los scripts reales).
-- Añadir secciones específicas sobre la API usada (si compartes la URL o `app/_utils/api.ts`).
 
 # Welcome to your Expo app 👋
 
